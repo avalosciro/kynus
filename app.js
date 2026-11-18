@@ -862,4 +862,4 @@ if (leer("llavero_panel") === "oculto" && !ES_MOVIL.matches){
 }
 pintarSaludo();
 pintarLista();
-if (leer("llavero_nombre") === null) setTimeout(mostrarBienvenida, 600);
+setTimeout(() => { if (leer("llavero_nombre") === null) mostrarBienvenida(); }, 600);
