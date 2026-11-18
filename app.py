@@ -24,7 +24,8 @@ def get_calendar_service():
 
 def transcribir_audio(archivo):
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-    files = {"file": ("audio.mp4", archivo.read(), "audio/mp4")}
+    # El celular manda webm (Android/PC) o m4a (iPhone); Groq usa la extensión para decodificar
+    files = {"file": (archivo.filename or "audio.webm", archivo.read(), archivo.mimetype or "audio/webm")}
     data = {"model": "whisper-large-v3-turbo"}
     respuesta = requests.post(
         "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -57,7 +58,9 @@ def extraer_evento(texto):
         json=body
     )
     print(f"Respuesta Llama: {respuesta.json()}")
-    contenido = respuesta.json()["choices"][0]["message"]["content"]
+    contenido = respuesta.json()["choices"][0]["message"]["content"].strip()
+    # A veces el modelo envuelve el JSON en ```json ... ```
+    contenido = contenido.strip("`").removeprefix("json").strip()
     return json.loads(contenido)
 
 
@@ -72,20 +75,31 @@ def recibir_audio():
     if not texto.strip():
         return jsonify({'error': 'No se entendió el audio'}), 400
 
-    evento_data = extraer_evento(texto)
+    try:
+        evento_data = extraer_evento(texto)
+    except Exception as e:
+        print(f"No se pudo extraer el evento: {e}")
+        return jsonify({'error': 'No entendí qué agendar. Probá decir qué, qué día y a qué hora.'}), 400
     print(f"Evento: {evento_data}")
 
     service = get_calendar_service()
-    fecha_hora = f"{evento_data['fecha']}T{evento_data['hora']}:00"
+    inicio = datetime.datetime.fromisoformat(f"{evento_data['fecha']}T{evento_data['hora']}:00")
+    fin = inicio + datetime.timedelta(hours=1)
     evento = {
         'summary': evento_data['titulo'],
-        'start': {'dateTime': fecha_hora, 'timeZone': 'America/Argentina/Cordoba'},
-        'end': {'dateTime': fecha_hora, 'timeZone': 'America/Argentina/Cordoba'},
+        'start': {'dateTime': inicio.isoformat(), 'timeZone': 'America/Argentina/Cordoba'},
+        'end': {'dateTime': fin.isoformat(), 'timeZone': 'America/Argentina/Cordoba'},
     }
     service.events().insert(calendarId=CALENDAR_ID, body=evento).execute()
     print(f"Evento agregado: {evento_data['titulo']}")
 
-    return jsonify({'ok': True, 'evento': evento_data['titulo'], 'transcripcion': texto})
+    return jsonify({
+        'ok': True,
+        'evento': evento_data['titulo'],
+        'fecha': evento_data['fecha'],
+        'hora': evento_data['hora'],
+        'transcripcion': texto,
+    })
 
 
 # ---------- Solo transcribir (notas y listas) ----------

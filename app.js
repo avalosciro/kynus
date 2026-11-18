@@ -1,424 +1,734 @@
 /* ============================================================
    LLAVERO — app.js
+   Notas + tareas (localStorage), fotos y audios (IndexedDB),
+   dictado, modo lectura, fijar, exportar y grabar → Google Calendar.
    ============================================================ */
 
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+const ES_MOVIL = window.matchMedia("(max-width:860px)");
+
+const $ = id => document.getElementById(id);
+const nuevoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
 /* ---------- Estado ---------- */
-let vista = "notas";          // notas | listas | nota | lista | habitos
-let notas = [];
-let listas = [];
-let habitos = [];
-let idAbierto = null;
+let docs = [];          // { id, tipo:"nota"|"tarea", titulo, cuerpo, items, fijada, creada, editada, adjuntos }
+let tab = "notas";      // notas | tareas
+let abierto = null;     // id del doc en el editor
 let filtro = "";
-let ultimaGratitude = null;
+let orden = leer("llavero_orden") || "recientes";
 
-/* ---------- Atajos ---------- */
-const $ = id => document.getElementById(id);
+const ICONO_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>';
+const ICONO_X     = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 
 /* ============================================================
    ALMACENAMIENTO
    ============================================================ */
+function leer(clave){ try{ return localStorage.getItem(clave); }catch{ return null; } }
+function escribir(clave, valor){ try{ localStorage.setItem(clave, valor); return true; }catch{ return false; } }
+
 function cargar(){
-  try{ notas  = JSON.parse(localStorage.getItem("llavero_notas")  || "[]"); }catch{ notas  = []; }
-  try{ listas = JSON.parse(localStorage.getItem("llavero_listas") || "[]"); }catch{ listas  = []; }
-  try{ habitos = JSON.parse(localStorage.getItem("llavero_habitos") || "[]"); }catch{ habitos = []; }
-  const hoyKey = "llavero_gratitude_" + new Date().toISOString().slice(0,10);
-  try{ ultimaGratitude = JSON.parse(localStorage.getItem(hoyKey) || "null"); }catch{ ultimaGratitude = null; }
-  if (!ultimaGratitude) ultimaGratitude = { texto:"", fecha:new Date().toISOString().slice(0,10) };
+  try{ docs = JSON.parse(leer("llavero_docs") || "[]"); }catch{ docs = []; }
+  if (!leer("llavero_docs")) migrarViejo();
 }
+
+// Pasa las notas y listas de la versión anterior al formato nuevo
+function migrarViejo(){
+  let notas = [], listas = [];
+  try{ notas  = JSON.parse(leer("llavero_notas")  || "[]"); }catch{}
+  try{ listas = JSON.parse(leer("llavero_listas") || "[]"); }catch{}
+  notas.forEach(n => docs.push(nuevoDoc("nota", { id:n.id, titulo:n.titulo, cuerpo:n.cuerpo, creada:n.editado, editada:n.editado })));
+  listas.forEach(l => docs.push(nuevoDoc("tarea", {
+    id:l.id, titulo:l.titulo, creada:l.editado, editada:l.editado,
+    items:(l.items || []).map(i => ({ id:nuevoId(), texto:i.texto, hecho:!!i.hecho }))
+  })));
+  if (docs.length) guardar();
+}
+
 function guardar(){
-  try{
-    localStorage.setItem("llavero_notas",  JSON.stringify(notas));
-    localStorage.setItem("llavero_listas", JSON.stringify(listas));
-  }catch(e){ avisar("No se pudo guardar en este navegador", "error"); }
+  if (!escribir("llavero_docs", JSON.stringify(docs))) avisar("No se pudo guardar en este navegador", "error");
 }
-function guardarHabitos(){
-  try{ localStorage.setItem("llavero_habitos", JSON.stringify(habitos)); }catch(e){ avisar("No se pudo guardar en este navegador", "error"); }
-}
-function guardarGratitude(texto){
-  const hoyKey = "llavero_gratitude_" + new Date().toISOString().slice(0,10);
-  localStorage.setItem(hoyKey, JSON.stringify({ texto, fecha:new Date().toISOString().slice(0,10) }));
-}
-const nuevoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
-const COLORES = ["#9FE8C8","#C0AEF0","#FFB59C","#FFDD8F","#A6D8F7"];
-const colorPara = id => COLORES[[...id].reduce((a,c)=>a+c.charCodeAt(0),0) % COLORES.length];
-
-function fecha(ts){
-  const d = new Date(ts);
-  return d.toLocaleDateString("es-AR", { day:"2-digit", month:"short" });
+function nuevoDoc(tipo, extra = {}){
+  const ahora = Date.now();
+  return { id:nuevoId(), tipo, titulo:"", cuerpo:"", items:[], fijada:false, creada:ahora, editada:ahora, adjuntos:[], ...extra };
 }
-const sinHtml = html => { const t = document.createElement("div"); t.innerHTML = html; return t.textContent || ""; };
+
+const docAbierto = () => docs.find(d => d.id === abierto);
+
+/* ---------- Fotos y audios en IndexedDB ---------- */
+const media = (() => {
+  let conexion;
+  const abrir = () => conexion || (conexion = new Promise((ok, mal) => {
+    const r = indexedDB.open("llavero_media", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("blobs");
+    r.onsuccess = () => ok(r.result);
+    r.onerror   = () => mal(r.error);
+  }));
+  const tx = async (modo, fn) => {
+    const db = await abrir();
+    return new Promise((ok, mal) => {
+      const t = db.transaction("blobs", modo);
+      const req = fn(t.objectStore("blobs"));
+      t.oncomplete = () => ok(req.result);
+      t.onerror    = () => mal(t.error);
+    });
+  };
+  return {
+    get: id      => tx("readonly",  s => s.get(id)),
+    put: (id, b) => tx("readwrite", s => s.put(b, id)),
+    del: id      => tx("readwrite", s => s.delete(id)),
+  };
+})();
 
 /* ============================================================
-   AVISOS
+   UTILIDADES
    ============================================================ */
+const textoPlano = html => { const t = document.createElement("div"); t.innerHTML = html || ""; return (t.innerText || t.textContent || "").trim(); };
+
+function fechaCorta(ts){
+  const d = new Date(ts), hoy = new Date();
+  if (d.toDateString() === hoy.toDateString()) return d.toLocaleTimeString("es-AR", { hour:"2-digit", minute:"2-digit" });
+  return d.toLocaleDateString("es-AR", { day:"numeric", month:"short" });
+}
+function fechaLarga(ts){
+  return new Date(ts).toLocaleString("es-AR", { day:"numeric", month:"long", hour:"2-digit", minute:"2-digit" });
+}
+
 let timerAviso;
-function avisar(texto, tipo = "", ms = 2600){
+function avisar(texto, tipo = "", ms = 2800){
   const el = $("aviso");
   el.textContent = texto;
   el.className = "aviso mostrar " + tipo;
   clearTimeout(timerAviso);
   if (ms) timerAviso = setTimeout(() => el.className = "aviso " + tipo, ms);
 }
-const cerrarAviso = () => { clearTimeout(timerAviso); $("aviso").className = "aviso"; };
 
-/* ============================================================
-   NAVEGACIÓN
-   ============================================================ */
-function ir(destino){
-  vista = destino;
-  document.querySelectorAll(".vista").forEach(v => v.classList.remove("activa"));
-
-  const mapa = { notas:"vistaNotas", listas:"vistaListas", nota:"vistaNota", lista:"vistaLista", habitos:"vistaHabitos", habito:"vistaHabito" };
-  $(mapa[destino]).classList.add("activa");
-
-  const enIndice = destino === "notas" || destino === "listas" || destino === "habitos";
-  $("btnNuevo").classList.toggle("oculto", !enIndice);
-  $("buscador").parentElement.style.display = enIndice ? "flex" : "none";
-
-  $("navNotas").classList.toggle("activo",  destino === "notas");
-  $("navListas").classList.toggle("activo", destino === "listas");
-  $("navHabitos").classList.toggle("activo", destino === "habitos");
-
-  const titulos = { notas:"Notas", listas:"Listas", nota:"Editar nota", lista:"Editar lista", habitos:"Hábitos", habito:"Editar hábito" };
-  $("migas").textContent = titulos[destino];
-
-  window.scrollTo(0,0);
-  if (destino === "notas")  pintarNotas();
-  if (destino === "listas") pintarListas();
-  if (destino === "habitos") pintarHabitos();
-  if (destino === "habito") pintarHistorial();
-  if (destino === "habitos") pintarGratitude();
+function descargar(nombre, contenido, tipo){
+  const url = URL.createObjectURL(new Blob([contenido], { type:tipo }));
+  const a = Object.assign(document.createElement("a"), { href:url, download:nombre });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+const nombreArchivo = t => (t || "sin-titulo").replace(/[\\/:*?"<>|]+/g, "").trim().slice(0, 60) || "sin-titulo";
 
 /* ============================================================
-   ÍNDICE DE NOTAS
+   MENÚ FLOTANTE
    ============================================================ */
-function pintarNotas(){
-  const grid = $("gridNotas");
-  grid.innerHTML = "";
-
-  const visibles = notas
-    .filter(n => (n.titulo + " " + sinHtml(n.cuerpo)).toLowerCase().includes(filtro))
-    .sort((a,b) => b.editado - a.editado);
-
-  $("vacioNotas").classList.toggle("mostrar", visibles.length === 0);
-
-  visibles.forEach(n => {
-    const t = document.createElement("button");
-    t.className = "tarjeta";
-    t.style.background = colorPara(n.id);
-    t.innerHTML = `
-      <h3></h3>
-      <p></p>
-      <span class="pie">${fecha(n.editado)}</span>`;
-    t.querySelector("h3").textContent = n.titulo || "Sin título";
-    t.querySelector("p").textContent  = sinHtml(n.cuerpo).slice(0,140);
-    t.onclick = () => abrirNota(n.id);
-    grid.appendChild(t);
+function abrirMenu(ancla, opciones){
+  const m = $("menu");
+  m.innerHTML = "";
+  opciones.forEach(o => {
+    if (o === "-"){ m.appendChild(document.createElement("hr")); return; }
+    const b = document.createElement("button");
+    b.textContent = o.txt;
+    if (o.peligro) b.className = "peligro";
+    b.onclick = () => { cerrarMenu(); o.fn(); };
+    m.appendChild(b);
   });
+  m.hidden = false;
+  const r = ancla.getBoundingClientRect();
+  const w = m.offsetWidth, h = m.offsetHeight;
+  let x = Math.min(r.right - w, window.innerWidth - w - 10);
+  x = Math.max(10, x);
+  let y = r.bottom + 6;
+  if (y + h > window.innerHeight - 10) y = Math.max(10, r.top - h - 6);
+  m.style.left = x + "px";
+  m.style.top  = y + "px";
 }
+const cerrarMenu = () => { $("menu").hidden = true; };
+
+document.addEventListener("pointerdown", e => {
+  if (!$("menu").hidden && !$("menu").contains(e.target)) cerrarMenu();
+}, true);
 
 /* ============================================================
-   ÍNDICE DE LISTAS
+   LISTA DEL PANEL
    ============================================================ */
-function pintarListas(){
-  const grid = $("gridListas");
-  grid.innerHTML = "";
-
-  const visibles = listas
-    .filter(l => (l.titulo + " " + l.items.map(i => i.texto).join(" ")).toLowerCase().includes(filtro))
-    .sort((a,b) => b.editado - a.editado);
-
-  $("vacioListas").classList.toggle("mostrar", visibles.length === 0);
-
-  visibles.forEach(l => {
-    const hechos = l.items.filter(i => i.hecho).length;
-    const t = document.createElement("button");
-    t.className = "tarjeta";
-    t.style.background = colorPara(l.id);
-    t.innerHTML = `
-      <h3></h3>
-      <p></p>
-      <span class="pie">${hechos}/${l.items.length} · ${fecha(l.editado)}</span>`;
-    t.querySelector("h3").textContent = l.titulo || "Sin título";
-    t.querySelector("p").textContent  = l.items.slice(0,3).map(i => "• " + i.texto).join("\n") || "Lista vacía";
-    t.onclick = () => abrirLista(l.id);
-    grid.appendChild(t);
-  });
+function visibles(){
+  const tipo = tab === "notas" ? "nota" : "tarea";
+  const f = filtro.toLowerCase();
+  const lista = docs.filter(d => d.tipo === tipo && (!f ||
+    (d.titulo + " " + textoPlano(d.cuerpo) + " " + d.items.map(i => i.texto).join(" ") +
+     " " + d.adjuntos.map(a => a.transcripcion || "").join(" ")).toLowerCase().includes(f)));
+  if (orden === "az")      lista.sort((a, b) => (a.titulo || "￿").localeCompare(b.titulo || "￿", "es"));
+  else if (orden === "viejas") lista.sort((a, b) => a.creada - b.creada);
+  else                     lista.sort((a, b) => b.editada - a.editada);
+  return lista;
 }
 
-/* ============================================================
-   EDITOR DE NOTA
-   ============================================================ */
-function abrirNota(id){
-  const n = notas.find(x => x.id === id);
-  if (!n) return;
-  idAbierto = id;
-  $("tituloNota").value      = n.titulo;
-  $("cuerpoNota").innerHTML  = n.cuerpo;
-  ir("nota");
-}
-
-function crearNota(){
-  const n = { id:nuevoId(), titulo:"", cuerpo:"", editado:Date.now() };
-  notas.push(n);
-  guardar();
-  abrirNota(n.id);
-  $("tituloNota").focus();
-}
-
-function guardarNota(){
-  const n = notas.find(x => x.id === idAbierto);
-  if (!n) return;
-  n.titulo  = $("tituloNota").value;
-  n.cuerpo  = $("cuerpoNota").innerHTML;
-  n.editado = Date.now();
-  guardar();
-}
-
-/* ============================================================
-   EDITOR DE LISTA
-   ============================================================ */
-function abrirLista(id){
-  const l = listas.find(x => x.id === id);
-  if (!l) return;
-  idAbierto = id;
-  $("tituloLista").value = l.titulo;
-  pintarItems();
-  ir("lista");
-}
-
-function crearLista(){
-  const l = { id:nuevoId(), titulo:"", items:[], editado:Date.now() };
-  listas.push(l);
-  guardar();
-  abrirLista(l.id);
-  $("tituloLista").focus();
-}
-
-function guardarLista(){
-  const l = listas.find(x => x.id === idAbierto);
-  if (!l) return;
-  l.titulo  = $("tituloLista").value;
-  l.editado = Date.now();
-  guardar();
-}
-
-function pintarItems(){
-  const l = listas.find(x => x.id === idAbierto);
-  if (!l) return;
-  const ul = $("itemsLista");
-  ul.innerHTML = "";
-
-  l.items.forEach((item, i) => {
-    const li = document.createElement("li");
-    li.className = "item" + (item.hecho ? " hecho" : "");
-    li.innerHTML = `
-      <button class="caja">${item.hecho ? "✕" : ""}</button>
-      <span class="txt"></span>
-      <button class="quitar">−</button>`;
-    li.querySelector(".txt").textContent = item.texto;
-    li.querySelector(".caja").onclick   = () => { item.hecho = !item.hecho; guardarLista(); pintarItems(); };
-    li.querySelector(".quitar").onclick = () => { l.items.splice(i,1);      guardarLista(); pintarItems(); };
-    ul.appendChild(li);
-  });
-}
-
-function agregarItem(texto){
-  const t = (texto || "").trim();
-  if (!t) return;
-  const l = listas.find(x => x.id === idAbierto);
-  if (!l) return;
-  l.items.push({ texto:t, hecho:false });
-  guardarLista();
-  pintarItems();
-}
-
-/* ============================================================
-   HÁBITOS + GRATITUD
-   ============================================================ */
-function pintarHabitos(){
-  const grid = $("gridHabitos");
-  grid.innerHTML = "";
-  const visibles = habitos.filter(h => h.activo !== false);
-  $("vacioHabitos").classList.toggle("mostrar", visibles.length === 0);
-
-  visibles.forEach(h => {
-    const card = document.createElement("button");
-    card.className = "tarjeta";
-    card.style.background = colorPara(h.id);
-    card.innerHTML = `
-      <h3></h3>
-      <p></p>
-      <span class="pie">${fecha(h.editado)}</span>`;
-    card.querySelector("h3").textContent = h.titulo || "Sin título";
-    const completados = h.dias.filter(d => d.hecho).length;
-    const progreso = h.dias.length ? completados / h.dias.length * 100 : 0;
-    card.querySelector("p").innerHTML = `
-      <div style="height:6px;background:#211F2D;border-radius:3px;overflow:hidden;margin:4px 0">
-        <div style="height:100%;width:${progreso}%;background:var(--menta);transition:width 0.3s"></div>
-      </div>
-      <span style="font-size:11px;opacity:0.7">${completados}/${h.dias.length} días</span>`;
-    card.onclick = () => editarHabito(h.id);
-    grid.appendChild(card);
-  });
-}
-
-function editarHabito(id){
-  const h = habitos.find(x => x.id === id);
-  if (!h) return;
-  idAbierto = id;
-  $("tituloHabito").value = h.titulo;
-  ir("habito");
-}
-
-function crearHabito(){
-  const h = { id:nuevoId(), titulo:"", dias:[], activo:true, editado:Date.now() };
-  habitos.push(h);
-  guardarHabitos();
-  editarHabito(h.id);
-  $("tituloHabito").focus();
-}
-
-function guardarHabito(){
-  const h = habitos.find(x => x.id === idAbierto);
-  if (!h) return;
-  h.titulo = $("tituloHabito").value;
-  h.editado = Date.now();
-  guardar();
-  guardarHabitos();
-}
-
-function marcarDiaHabito(fechaStr, hecho){
-  if (!idAbierto) return;
-  const h = habitos.find(x => x.id === idAbierto);
-  if (!h) return;
-  let dia = h.dias.find(d => d.fecha === fechaStr);
-  if (!dia) { dia = { fecha:fechaStr, hecho:false }; h.dias.push(dia); }
-  dia.hecho = hecho;
-  guardarHabitos();
-  pintarHabitos();
-}
-
-function eliminarHabito(){
-  if (!confirm("¿Eliminar este hábito?")) return;
-  habitos = habitos.filter(h => h.id !== idAbierto);
-  guardarHabitos();
-  ir("habitos");
-}
-
-function pintarHistorial(){
-  const container = $("#historialHabito");
-  container.innerHTML = "";
-  if (!idAbierto) return;
-  const h = habitos.find(x => x.id === idAbierto);
-  if (!h || !h.dias.length) {
-    container.innerHTML = `<p class="mini">Sin registros aún. Tocá los círculos para marcar.</p>`;
-    return;
+function fila(d){
+  const li = document.createElement("li");
+  li.className = "fila" + (d.id === abierto ? " activa" : "");
+  const titulo = document.createElement("span");
+  titulo.className = "fila-titulo";
+  titulo.textContent = d.titulo || (d.tipo === "nota" ? "Sin título" : "Lista sin título");
+  const meta = document.createElement("span");
+  meta.className = "fila-meta";
+  const cuando = document.createElement("span");
+  cuando.textContent = fechaCorta(d.editada);
+  const resumen = document.createElement("span");
+  if (d.tipo === "nota"){
+    const fotos = d.adjuntos.filter(a => a.tipo === "foto").length;
+    const audios = d.adjuntos.filter(a => a.tipo === "audio").length;
+    const extra = [fotos && `${fotos} foto${fotos > 1 ? "s" : ""}`, audios && `${audios} audio${audios > 1 ? "s" : ""}`].filter(Boolean).join(" · ");
+    resumen.textContent = textoPlano(d.cuerpo).slice(0, 80) || extra;
+  } else {
+    const hechas = d.items.filter(i => i.hecho).length;
+    resumen.textContent = `${hechas}/${d.items.length} hechas`;
   }
-  h.dias.forEach(d => {
-    const div = document.createElement("div");
-    div.style.display = "flex";
-    div.style.alignItems = "center";
-    div.style.gap = "8px";
-    div.style.margin = "4px 0";
-    div.innerHTML = `
-      <span style="width:20px;font-size:12px;color:var(--texto-tenue)">${d.fecha.slice(-5)}</span>
-      <div style="
-        width:16px;height:16px;border:2px solid var(--negro);
-        border-radius:4px;background:${d.hecho ? 'var(--menta)' : 'var(--superficie2)'};
-        flex-shrink:0;cursor:pointer;"
-        onclick="marcarDiaHabito('${d.fecha}', !${d.hecho})">
-      </div>`;
-    container.appendChild(div);
-  });
+  meta.append(cuando, document.createTextNode("·"), resumen);
+  li.append(titulo, meta);
+  if (d.tipo === "tarea" && d.items.length){
+    const p = document.createElement("div");
+    p.className = "progreso";
+    p.innerHTML = `<i style="width:${Math.round(d.items.filter(i => i.hecho).length / d.items.length * 100)}%"></i>`;
+    li.appendChild(p);
+  }
+  li.onclick = () => abrir(d.id);
+  return li;
 }
 
-function pintarGratitude(){
-  $("#gratitud").value = ultimaGratitude ? ultimaGratitude.texto : "";
+function pintarLista(){
+  const esNotas = tab === "notas";
+  const vs = visibles();
+  const fijadas = vs.filter(d => d.fijada);
+  const resto   = vs.filter(d => !d.fijada);
+
+  $("listaFijadas").replaceChildren(...fijadas.map(fila));
+  $("listaTodas").replaceChildren(...resto.map(fila));
+  $("vaciaFijadas").hidden = fijadas.length > 0;
+  $("vaciaTodas").hidden   = resto.length > 0;
+  $("vaciaFijadas").textContent = filtro ? "Sin resultados" : "Nada fijado";
+  $("vaciaTodas").textContent   = filtro ? "Sin resultados" : (esNotas ? "Todavía no hay notas" : "Todavía no hay listas");
+
+  // Textos que cambian según la pestaña
+  $("sideTitulo").textContent = $("tituloPagina").textContent = $("tituloTodas").textContent = esNotas ? "Notas" : "Tareas";
+  $("txtCrear").textContent = $("txtCrearVacio").textContent = esNotas ? "Crear nota" : "Crear lista";
+  const hayDelTipo = docs.some(d => d.tipo === (esNotas ? "nota" : "tarea"));
+  $("vacioTitulo").textContent = hayDelTipo ? (esNotas ? "Elegí una nota" : "Elegí una lista") : (esNotas ? "Todavía no hay notas" : "Todavía no hay listas");
+  $("vacioSub").textContent    = hayDelTipo ? "O empezá una nueva." : (esNotas ? "Escribí ahora. Organizá después." : "Anotá lo que hay que hacer.");
+
+  document.querySelectorAll("[data-tab]").forEach(b => b.classList.toggle(b.classList.contains("tab") ? "activa" : "activo", b.dataset.tab === tab));
 }
-function guardarGratitude(){
-  const texto = $("#gratitud").value.trim();
-  ultimaGratitude = { texto, fecha:new Date().toISOString().slice(0,10) };
-  localStorage.setItem("llavero_gratitude_" + ultimaGratitude.fecha, JSON.stringify(ultimaGratitude));
+
+function cambiarTab(t){
+  if (abierto) volver();
+  tab = t;
+  pintarLista();
 }
 
 /* ============================================================
-   GRABACIÓN DE AUDIO
+   EDITOR
+   ============================================================ */
+function crear(tipo, despues){
+  if (abierto) cerrar(true);
+  const d = nuevoDoc(tipo);
+  docs.push(d);
+  guardar();
+  tab = tipo === "nota" ? "notas" : "tareas";
+  abrir(d.id);
+  if (despues) despues(d);
+  else if (tipo === "tarea") $("nuevoItem").focus();
+  else if (!ES_MOVIL.matches) $("edTitulo").focus();
+}
+
+function abrir(id){
+  const d = docs.find(x => x.id === id);
+  if (!d) return;
+  if (abierto && abierto !== id) limpiarVacio(docAbierto());
+  abierto = id;
+  salirZen();
+
+  const esNota = d.tipo === "nota";
+  $("edTitulo").value = d.titulo;
+  $("edTitulo").placeholder = esNota ? "Sin título" : "Nombre de la lista";
+  $("edCuerpo").hidden = !esNota;
+  $("edTareas").hidden = esNota;
+  document.querySelectorAll("#toolbar [data-cmd], #toolbar [data-block], #toolbar .sep:first-of-type")
+    .forEach(b => b.hidden = !esNota);
+  if (esNota) $("edCuerpo").innerHTML = d.cuerpo;
+  else pintarItems();
+  pintarCabecera();
+  pintarAdjuntos();
+
+  $("vistaVacia").hidden = true;
+  $("vistaEditor").hidden = false;
+  $("principal").scrollTop = 0;
+  document.body.classList.add("editando");
+  if (ES_MOVIL.matches && !(history.state && history.state.editor)) history.pushState({ editor:true }, "");
+  pintarLista();
+}
+
+function cerrar(sinPintar){
+  limpiarVacio(docAbierto());
+  abierto = null;
+  salirZen();
+  $("vistaEditor").hidden = true;
+  $("vistaVacia").hidden = false;
+  document.body.classList.remove("editando");
+  if (!sinPintar) pintarLista();
+}
+
+// En celular el editor ocupa una "página": volver usa el historial (botón atrás de Android incluido)
+function volver(){
+  if (history.state && history.state.editor) history.back();
+  else cerrar();
+}
+window.addEventListener("popstate", () => { if (abierto) cerrar(); });
+
+// Borra notas que quedaron completamente vacías
+function limpiarVacio(d){
+  if (!d) return;
+  const vacio = !d.titulo.trim() && !textoPlano(d.cuerpo) && !d.items.length && !d.adjuntos.length;
+  if (vacio){ docs = docs.filter(x => x.id !== d.id); guardar(); }
+}
+
+function tocar(d){ d.editada = Date.now(); guardar(); pintarCabecera(); pintarLista(); }
+
+function pintarCabecera(){
+  const d = docAbierto();
+  if (!d) return;
+  $("edFecha").textContent = "Editado " + fechaLarga(d.editada);
+  $("btnFijar").classList.toggle("activo", d.fijada);
+  $("btnFijar").title = d.fijada ? "Desfijar" : "Fijar";
+}
+
+$("edTitulo").oninput = () => { const d = docAbierto(); if (d){ d.titulo = $("edTitulo").value; tocar(d); } };
+$("edTitulo").onkeydown = e => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  const d = docAbierto();
+  if (d && d.tipo === "nota") $("edCuerpo").focus(); else $("nuevoItem").focus();
+};
+$("edCuerpo").oninput = () => { const d = docAbierto(); if (d){ d.cuerpo = $("edCuerpo").innerHTML; tocar(d); } };
+
+/* ---------- Barra de formato ---------- */
+document.querySelectorAll("#toolbar button").forEach(b => b.addEventListener("mousedown", e => e.preventDefault()));
+document.querySelectorAll("#toolbar [data-cmd]").forEach(b => b.onclick = () => {
+  document.execCommand(b.dataset.cmd, false, null);
+  $("edCuerpo").dispatchEvent(new Event("input"));
+});
+document.querySelectorAll("#toolbar [data-block]").forEach(b => b.onclick = () => {
+  const actual = (document.queryCommandValue("formatBlock") || "").toUpperCase();
+  document.execCommand("formatBlock", false, actual === b.dataset.block ? "P" : b.dataset.block);
+  $("edCuerpo").dispatchEvent(new Event("input"));
+});
+
+/* ---------- Tareas ---------- */
+function pintarItems(enfocar){
+  const d = docAbierto();
+  if (!d) return;
+  const zen = document.body.classList.contains("zen");
+  $("items").replaceChildren(...d.items.map((it, i) => {
+    const li = document.createElement("li");
+    li.className = "item" + (it.hecho ? " hecho" : "");
+    li.innerHTML = `<button class="check" aria-label="Marcar">${ICONO_CHECK}</button>
+      <input class="item-txt" type="text"><button class="item-borrar" aria-label="Borrar">${ICONO_X}</button>`;
+    const inp = li.querySelector(".item-txt");
+    inp.value = it.texto;
+    inp.readOnly = zen;
+    li.querySelector(".check").onclick = () => { it.hecho = !it.hecho; tocar(d); pintarItems(); };
+    li.querySelector(".item-borrar").onclick = () => { d.items.splice(i, 1); tocar(d); pintarItems(); };
+    inp.oninput = () => { it.texto = inp.value; tocar(d); };
+    inp.onkeydown = e => {
+      if (e.key === "Enter"){ e.preventDefault(); $("nuevoItem").focus(); }
+      if (e.key === "Backspace" && !inp.value){ e.preventDefault(); d.items.splice(i, 1); tocar(d); pintarItems(i - 1); }
+    };
+    return li;
+  }));
+  if (enfocar >= 0) $("items").children[enfocar]?.querySelector("input").focus();
+}
+
+function agregarItems(textos){
+  const d = docAbierto();
+  if (!d) return;
+  textos.map(t => t.trim()).filter(Boolean).forEach(t => d.items.push({ id:nuevoId(), texto:t, hecho:false }));
+  tocar(d);
+  pintarItems();
+}
+const partirEnTareas = texto => texto.split(/[,;\n]| y luego | después | y /i);
+
+$("formItem").onsubmit = e => {
+  e.preventDefault();
+  agregarItems([$("nuevoItem").value]);
+  $("nuevoItem").value = "";
+};
+
+/* ---------- Fijar / zen / menú de la nota ---------- */
+function alternarFijada(d = docAbierto()){
+  if (!d) return;
+  d.fijada = !d.fijada;
+  guardar(); pintarCabecera(); pintarLista();
+  avisar(d.fijada ? "Fijada arriba" : "Desfijada");
+}
+$("btnFijar").onclick = () => alternarFijada();
+
+function alternarZen(){
+  const on = document.body.classList.toggle("zen");
+  $("btnZen").classList.toggle("activo", on);
+  $("btnZen").title = on ? "Salir del modo lectura" : "Modo lectura";
+  $("edCuerpo").contentEditable = on ? "false" : "true";
+  $("edTitulo").readOnly = on;
+  document.querySelectorAll(".item-txt").forEach(i => i.readOnly = on);
+}
+function salirZen(){ if (document.body.classList.contains("zen")) alternarZen(); }
+$("btnZen").onclick = alternarZen;
+
+$("btnNotaMenu").onclick = e => {
+  const d = docAbierto();
+  if (!d) return;
+  abrirMenu(e.currentTarget, [
+    { txt: d.fijada ? "Desfijar" : "Fijar arriba", fn: () => alternarFijada(d) },
+    { txt: "Modo lectura", fn: alternarZen },
+    { txt: "Duplicar", fn: () => duplicar(d) },
+    "-",
+    { txt: "Exportar como Markdown (.md)", fn: () => exportarDoc(d, "md") },
+    { txt: "Exportar como texto (.txt)",   fn: () => exportarDoc(d, "txt") },
+    "-",
+    { txt: "Eliminar", peligro:true, fn: () => eliminar(d) },
+  ]);
+};
+
+function duplicar(d){
+  const copia = nuevoDoc(d.tipo, {
+    titulo: (d.titulo || "Sin título") + " (copia)", cuerpo:d.cuerpo, fijada:false,
+    items: d.items.map(i => ({ ...i, id:nuevoId() })),
+  });
+  docs.push(copia); guardar(); abrir(copia.id);
+  avisar("Duplicada (sin fotos ni audios)");
+}
+
+async function eliminar(d){
+  if (!confirm(`¿Eliminar "${d.titulo || "Sin título"}"?`)) return;
+  docs = docs.filter(x => x.id !== d.id);
+  guardar();
+  d.adjuntos.forEach(a => media.del(a.id).catch(() => {}));
+  volver();
+  avisar("Eliminada");
+}
+
+/* ---------- Exportar ---------- */
+function htmlAMarkdown(html){
+  const raiz = document.createElement("div");
+  raiz.innerHTML = html || "";
+  const rec = (n, lista) => {
+    if (n.nodeType === 3) return n.textContent;
+    if (n.nodeType !== 1) return "";
+    const hijos = () => [...n.childNodes].map(c => rec(c, lista)).join("");
+    switch (n.tagName){
+      case "B": case "STRONG": return `**${hijos()}**`;
+      case "I": case "EM":     return `_${hijos()}_`;
+      case "S": case "STRIKE": case "DEL": return `~~${hijos()}~~`;
+      case "U":  return hijos();
+      case "BR": return "\n";
+      case "H1": case "H2": case "H3": return `\n## ${hijos()}\n`;
+      case "BLOCKQUOTE": return "\n" + hijos().split("\n").map(l => "> " + l).join("\n") + "\n";
+      case "UL": return "\n" + [...n.children].map(li => "- " + rec(li, "ul").trim()).join("\n") + "\n";
+      case "OL": return "\n" + [...n.children].map((li, i) => `${i + 1}. ` + rec(li, "ol").trim()).join("\n") + "\n";
+      case "A":  return `[${hijos()}](${n.getAttribute("href")})`;
+      case "DIV": case "P": return "\n" + hijos();
+      default:   return hijos();
+    }
+  };
+  return rec(raiz).replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function exportarDoc(d, formato){
+  const titulo = d.titulo || "Sin título";
+  let cuerpo;
+  if (d.tipo === "nota") cuerpo = formato === "md" ? htmlAMarkdown(d.cuerpo) : textoPlano(d.cuerpo);
+  else cuerpo = d.items.map(i => formato === "md" ? `- [${i.hecho ? "x" : " "}] ${i.texto}` : `${i.hecho ? "[x]" : "[ ]"} ${i.texto}`).join("\n");
+  const transcripciones = d.adjuntos.filter(a => a.transcripcion).map(a => a.transcripcion);
+  if (transcripciones.length) cuerpo += (formato === "md" ? "\n\n## Audios\n\n" : "\n\nAudios:\n") + transcripciones.map(t => "- " + t).join("\n");
+  const texto = (formato === "md" ? `# ${titulo}\n\n` : `${titulo}\n\n`) + cuerpo + "\n";
+  descargar(`${nombreArchivo(titulo)}.${formato}`, texto, formato === "md" ? "text/markdown" : "text/plain");
+}
+
+function exportarTodo(){
+  const datos = { app:"llavero", version:1, exportado:new Date().toISOString(), docs };
+  descargar(`llavero-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(datos, null, 2), "application/json");
+  avisar("Copia descargada (las fotos y audios quedan en este dispositivo)", "", 4000);
+}
+
+$("inpImportar").onchange = async e => {
+  const archivo = e.target.files[0];
+  e.target.value = "";
+  if (!archivo) return;
+  try{
+    const datos = JSON.parse(await archivo.text());
+    const entrantes = (datos.docs || []).filter(d => d && d.id && (d.tipo === "nota" || d.tipo === "tarea"));
+    let nuevos = 0;
+    entrantes.forEach(d => {
+      const limpio = nuevoDoc(d.tipo, { ...d, adjuntos:[] });
+      const i = docs.findIndex(x => x.id === d.id);
+      if (i >= 0){ if (limpio.editada > docs[i].editada) docs[i] = { ...limpio, adjuntos:docs[i].adjuntos }; }
+      else { docs.push(limpio); nuevos++; }
+    });
+    guardar(); pintarLista();
+    avisar(`Importado: ${nuevos} nuevas, ${entrantes.length - nuevos} actualizadas`, "ok");
+  }catch{ avisar("Ese archivo no es una copia válida", "error"); }
+};
+
+/* ============================================================
+   ADJUNTOS: FOTOS Y AUDIOS
+   ============================================================ */
+let urlsVivas = [];
+
+async function pintarAdjuntos(){
+  const d = docAbierto();
+  const cont = $("adjuntos");
+  urlsVivas.forEach(u => URL.revokeObjectURL(u));
+  urlsVivas = [];
+  cont.innerHTML = "";
+  if (!d || !d.adjuntos.length) return;
+  const idDoc = d.id;
+
+  const fotos = d.adjuntos.filter(a => a.tipo === "foto");
+  const audios = d.adjuntos.filter(a => a.tipo === "audio");
+
+  if (fotos.length){
+    const grilla = document.createElement("div");
+    grilla.className = "fotos";
+    for (const a of fotos){
+      const caja = document.createElement("div");
+      caja.className = "foto";
+      caja.innerHTML = `<img alt=""><button class="quitar" aria-label="Quitar foto">${ICONO_X}</button>`;
+      caja.querySelector(".quitar").onclick = () => quitarAdjunto(a);
+      grilla.appendChild(caja);
+      media.get(a.id).then(blob => {
+        if (!blob || abierto !== idDoc) return;
+        const url = URL.createObjectURL(blob);
+        urlsVivas.push(url);
+        const img = caja.querySelector("img");
+        img.src = url;
+        img.onclick = () => verFoto(url);
+      }).catch(() => {});
+    }
+    cont.appendChild(grilla);
+  }
+
+  for (const a of audios){
+    const caja = document.createElement("div");
+    caja.className = "caja audio";
+    caja.innerHTML = `
+      <div class="audio-fila"><audio controls preload="metadata"></audio>
+        <button class="quitar" aria-label="Quitar audio">${ICONO_X}</button></div>
+      <div class="audio-acciones"></div>`;
+    caja.querySelector(".quitar").onclick = () => quitarAdjunto(a);
+    const acciones = caja.querySelector(".audio-acciones");
+
+    if (a.transcripcion){
+      const t = document.createElement("p");
+      t.className = "transcripcion";
+      t.textContent = a.transcripcion;
+      caja.appendChild(t);
+      const ins = document.createElement("button");
+      ins.className = "chip";
+      ins.textContent = d.tipo === "nota" ? "Pasar al texto" : "Agregar como tareas";
+      ins.onclick = () => d.tipo === "nota" ? insertarEnNota(a.transcripcion) : agregarItems(partirEnTareas(a.transcripcion));
+      acciones.appendChild(ins);
+    } else {
+      const tr = document.createElement("button");
+      tr.className = "chip";
+      tr.textContent = "Transcribir";
+      tr.onclick = async () => {
+        tr.disabled = true; tr.textContent = "Transcribiendo…";
+        try{
+          const blob = await media.get(a.id);
+          a.transcripcion = await transcribir(blob) || "(No se entendió el audio)";
+          tocar(d);
+          if (abierto === idDoc) pintarAdjuntos();
+        }catch{
+          tr.disabled = false; tr.textContent = "Transcribir";
+          avisar("No se pudo transcribir", "error");
+        }
+      };
+      acciones.appendChild(tr);
+    }
+    cont.appendChild(caja);
+    media.get(a.id).then(blob => {
+      if (!blob || abierto !== idDoc) return;
+      const url = URL.createObjectURL(blob);
+      urlsVivas.push(url);
+      caja.querySelector("audio").src = url;
+    }).catch(() => {});
+  }
+}
+
+function verFoto(url){
+  const v = document.createElement("div");
+  v.className = "visor";
+  v.innerHTML = `<img alt="">`;
+  v.querySelector("img").src = url;
+  v.onclick = () => v.remove();
+  document.body.appendChild(v);
+}
+
+async function quitarAdjunto(a){
+  const d = docAbierto();
+  if (!d || !confirm(a.tipo === "foto" ? "¿Quitar esta foto?" : "¿Quitar este audio?")) return;
+  d.adjuntos = d.adjuntos.filter(x => x.id !== a.id);
+  tocar(d);
+  media.del(a.id).catch(() => {});
+  pintarAdjuntos();
+}
+
+async function agregarAdjunto(tipo, blob, extra = {}){
+  const d = docAbierto();
+  if (!d) return;
+  const id = nuevoId();
+  try{ await media.put(id, blob); }
+  catch{ avisar("No hay espacio para guardar el archivo", "error"); return; }
+  d.adjuntos.push({ id, tipo, creada:Date.now(), ...extra });
+  tocar(d);
+  pintarAdjuntos();
+}
+
+// Achica la foto para no llenar el almacenamiento del celular
+async function comprimir(archivo){
+  try{
+    const url = URL.createObjectURL(archivo);
+    const img = new Image();
+    await new Promise((ok, mal) => { img.onload = ok; img.onerror = mal; img.src = url; });
+    const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    return await new Promise(ok => c.toBlob(b => ok(b || archivo), "image/jpeg", 0.85));
+  }catch{ return archivo; }
+}
+
+$("tbFoto").onclick = () => $("inpFoto").click();
+$("inpFoto").onchange = async e => {
+  const archivo = e.target.files[0];
+  e.target.value = "";
+  if (!archivo) return;
+  avisar("Guardando foto…", "", 0);
+  await agregarAdjunto("foto", await comprimir(archivo));
+  avisar("Foto agregada", "ok");
+};
+
+/* ============================================================
+   GRABACIÓN (una sola a la vez)
    ============================================================ */
 let grabadora = null;
-let trozos = [];
-let grabando = false;
-let alTerminar = null;
+let botonGrabando = null;
 
-async function alternarGrabacion(boton, callback){
-  if (grabando){
+function tipoAudio(){
+  if (!window.MediaRecorder) return "";
+  for (const t of ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"])
+    if (MediaRecorder.isTypeSupported(t)) return t;
+  return "";
+}
+const extension = mime => mime.includes("mp4") ? "m4a" : mime.includes("ogg") ? "ogg" : "webm";
+
+async function grabar(boton, alTerminar){
+  if (grabadora){
+    const mismo = botonGrabando === boton;
     grabadora.stop();
-    grabadora.stream.getTracks().forEach(t => t.stop());
-    grabando = false;
-    boton.classList.remove("grabando");
-    return;
+    if (mismo) return;
+  }
+  if (!navigator.mediaDevices || !window.MediaRecorder){
+    avisar("Este navegador no puede grabar audio", "error"); return;
   }
   try{
     const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
-    trozos = [];
-    alTerminar = callback;
-    grabadora = new MediaRecorder(stream);
-    grabadora.ondataavailable = e => trozos.push(e.data);
-    grabadora.onstop = () => {
-      const blob = new Blob(trozos, { type:"audio/mp4" });
-      if (alTerminar) alTerminar(blob);
+    const mime = tipoAudio();
+    const rec = mime ? new MediaRecorder(stream, { mimeType:mime }) : new MediaRecorder(stream);
+    const trozos = [];
+    rec.ondataavailable = e => e.data.size && trozos.push(e.data);
+    rec.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      boton.classList.remove("grabando");
+      grabadora = botonGrabando = null;
+      const blob = new Blob(trozos, { type:rec.mimeType || mime || "audio/webm" });
+      if (blob.size) alTerminar(blob);
     };
-    grabadora.start();
-    grabando = true;
+    rec.start();
+    grabadora = rec;
+    botonGrabando = boton;
     boton.classList.add("grabando");
-    avisar("Grabando. Tocá de nuevo para terminar.", "trabajando", 0);
-  }catch(e){
-    avisar("No se pudo acceder al micrófono", "error");
+    avisar("Grabando… tocá de nuevo para terminar", "", 0);
+  }catch{
+    avisar("No se pudo usar el micrófono. Revisá los permisos.", "error", 4000);
   }
 }
 
-/* ---------- Grabar y agendar en el calendario ---------- */
-async function agendarAudio(blob){
-  avisar("Agendando…", "trabajando", 0);
-  const fd = new FormData();
-  fd.append("audio", blob, "audio.mp4");
-  try{
-    const res  = await fetch(`${BACKEND}/audio`, { method:"POST", body:fd });
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || "El servidor no pudo procesarlo");
-    avisar("Agendado: " + data.evento);
-  }catch(e){
-    avisar("No se pudo agendar. Probá de nuevo.", "error");
-  }
-}
-
-/* ---------- Transcribir para notas y listas ---------- */
 async function transcribir(blob){
   const fd = new FormData();
-  fd.append("audio", blob, "audio.mp4");
-  const res  = await fetch(`${BACKEND}/transcribir`, { method:"POST", body:fd });
+  fd.append("audio", blob, "audio." + extension(blob.type));
+  const res = await fetch(`${BACKEND}/transcribir`, { method:"POST", body:fd });
   const data = await res.json();
   if (!res.ok || data.error) throw new Error(data.error || "Falló la transcripción");
   return (data.texto || "").trim();
 }
+
+function insertarEnNota(texto){
+  const d = docAbierto();
+  if (!d) return;
+  const p = document.createElement("p");
+  p.textContent = texto;
+  $("edCuerpo").appendChild(p);
+  d.cuerpo = $("edCuerpo").innerHTML;
+  tocar(d);
+}
+
+/* ---------- Audio adjunto ---------- */
+$("tbAudio").onclick = () => grabar($("tbAudio"), async blob => {
+  await agregarAdjunto("audio", blob);
+  avisar("Audio guardado", "ok");
+});
+
+/* ---------- Dictado: voz → texto ---------- */
+function dictar(boton){
+  grabar(boton, async blob => {
+    avisar("Transcribiendo…", "", 0);
+    try{
+      const texto = await transcribir(blob);
+      if (!texto){ avisar("No se entendió el audio", "error"); return; }
+      const d = docAbierto();
+      if (d && d.tipo === "tarea") agregarItems(partirEnTareas(texto));
+      else insertarEnNota(texto);
+      avisar("Texto agregado", "ok");
+    }catch{ avisar("No se pudo transcribir", "error"); }
+  });
+}
+$("tbDictar").onclick = () => dictar($("tbDictar"));
+
+/* ---------- Botón central: grabar y agendar en Google Calendar ---------- */
+$("btnGrabar").onclick = () => grabar($("btnGrabar"), async blob => {
+  const btn = $("btnGrabar");
+  btn.classList.add("ocupado");
+  avisar("Agendando en el calendario…", "", 0);
+  const fd = new FormData();
+  fd.append("audio", blob, "audio." + extension(blob.type));
+  try{
+    const res  = await fetch(`${BACKEND}/audio`, { method:"POST", body:fd });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error);
+    const cuando = data.fecha ? ` · ${new Date(data.fecha + "T12:00").toLocaleDateString("es-AR", { weekday:"short", day:"numeric", month:"short" })} ${data.hora || ""}` : "";
+    avisar(`Agendado: ${data.evento}${cuando}`, "ok", 4500);
+  }catch(e){
+    avisar(e && e.message ? e.message : "No se pudo agendar. Probá de nuevo.", "error", 4000);
+  }finally{
+    btn.classList.remove("ocupado");
+  }
+});
 
 /* ============================================================
    SINCRONIZAR CON EL LLAVERO (BLE)
    ============================================================ */
 async function sincronizar(){
   if (!navigator.bluetooth){
-    avisar("Este navegador no soporta Bluetooth. Usá Chrome en Android.", "error", 4000);
+    avisar("Este navegador no soporta Bluetooth. Usá Chrome en Android o PC.", "error", 4000);
     return;
   }
-  const btn = $("btnSync");
   try{
-    avisar("Buscando el llavero…", "trabajando", 0);
+    avisar("Buscando el llavero…", "", 0);
     const device = await navigator.bluetooth.requestDevice({
       filters:[{ namePrefix:"Llavero" }],
       optionalServices:[SERVICE_UUID]
@@ -427,168 +737,129 @@ async function sincronizar(){
     const service = await server.getPrimaryService(SERVICE_UUID);
     const car     = await service.getCharacteristic(CHAR_UUID);
 
-    btn.classList.add("girando");
-    avisar("Buscando los eventos de hoy…", "trabajando", 0);
-
+    avisar("Buscando los eventos de hoy…", "", 0);
     const res  = await fetch(`${BACKEND}/eventos`);
     const data = await res.json();
     const evs  = data.eventos || [];
-
-    const mensaje = evs.length
-      ? evs.map(e => `${e.hora} ${e.titulo}`).join("|") + "|"
-      : "Sin eventos hoy";
+    const mensaje = evs.length ? evs.map(e => `${e.hora} ${e.titulo}`).join("|") + "|" : "Sin eventos hoy";
 
     const bytes = new TextEncoder().encode(mensaje);
     for (let i = 0; i < bytes.length; i += 20){
       await car.writeValue(bytes.slice(i, i + 20));
       await new Promise(r => setTimeout(r, 50));
     }
-
-    btn.classList.remove("girando");
-    avisar(evs.length ? `Llavero al día · ${evs.length} evento(s)` : "Llavero al día · sin eventos hoy");
+    avisar(evs.length ? `Llavero al día · ${evs.length} evento(s)` : "Llavero al día · sin eventos hoy", "ok");
   }catch(e){
-    btn.classList.remove("girando");
-    if (e.name === "NotFoundError") cerrarAviso();
+    if (e.name === "NotFoundError") $("aviso").className = "aviso";
     else avisar("No se pudo sincronizar el llavero", "error");
   }
 }
 
 /* ============================================================
-   EVENTOS DE LA INTERFAZ
+   BIENVENIDA (nombre)
    ============================================================ */
-
-/* --- Navegación --- */
-$("navNotas").onclick  = () => { filtro = ""; $("buscador").value = ""; ir("notas"); };
-$("navListas").onclick = () => { filtro = ""; $("buscador").value = ""; ir("listas"); };
-
-$("btnNuevo").onclick = () => vista === "notas" ? crearNota() : crearLista();
-
-$("buscador").oninput = e => {
-  filtro = e.target.value.trim().toLowerCase();
-  vista === "notas" ? pintarNotas() : pintarListas();
+function pintarSaludo(){
+  const nombre = leer("llavero_nombre");
+  const h = new Date().getHours();
+  const momento = h < 6 ? "Buenas noches" : h < 13 ? "Buen día" : h < 20 ? "Buenas tardes" : "Buenas noches";
+  $("saludo").hidden = !nombre;
+  if (nombre) $("saludo").textContent = `${momento}, ${nombre}`;
+}
+function mostrarBienvenida(){
+  $("inpNombre").value = leer("llavero_nombre") || "";
+  $("chkSinNombre").checked = false;
+  $("inpNombre").disabled = false;
+  $("bienvenida").hidden = false;
+}
+$("chkSinNombre").onchange = e => { $("inpNombre").disabled = e.target.checked; };
+$("btnGuardarNombre").onclick = () => {
+  const nombre = $("chkSinNombre").checked ? "" : $("inpNombre").value.trim();
+  escribir("llavero_nombre", nombre);
+  $("bienvenida").hidden = true;
+  pintarSaludo();
 };
-
-/* --- Botón central: grabar y agendar --- */
-$("btnGrabar").onclick = () => alternarGrabacion($("btnGrabar"), agendarAudio);
-
-/* --- Sync --- */
-$("btnSync").onclick = sincronizar;
-
-/* --- Cambiar tema --- */
-$("btnTema").onclick = alternarTema;
-
-/* --- Navegación de hábitos --- */
-$("navHabitos").onclick = () => { filtro = ""; ir("habitos"); };
-$("nuevoHabito").onclick = crearHabito;
-
-$("btnNuevo").onclick = () => {
-  if (vista === "notas") crearNota();
-  else if (vista === "listas") crearLista();
-  else if (vista === "habitos") crearHabito();
-  else if (vista === "habito") guardarHabito();
+$("inpNombre").onkeydown = e => { if (e.key === "Enter") $("btnGuardarNombre").click(); };
+$("btnOmitir").onclick = () => {
+  if (leer("llavero_nombre") === null) escribir("llavero_nombre", "");
+  $("bienvenida").hidden = true;
 };
-
-/* --- Editor de hábito --- */
-$("tituloHabito").oninput = guardarHabito;
-$("eliminarHabito").onclick = eliminarHabito;
-
-/* --- Gratitud --- */
-$("#gratitud").onblur = guardarGratitude;
-
-/* --- Editor de nota --- */
-$("tituloNota").oninput     = guardarNota;
-$("cuerpoNota").oninput     = guardarNota;
-
-document.querySelectorAll(".tb[data-cmd]").forEach(b => {
-  b.onmousedown = e => e.preventDefault();
-  b.onclick = () => { document.execCommand(b.dataset.cmd, false, null); guardarNota(); };
-});
-$("selTamano").onchange = e => { document.execCommand("fontSize", false, e.target.value); guardarNota(); };
-$("selFuente").onchange = e => { document.execCommand("fontName", false, e.target.value); guardarNota(); };
-document.querySelectorAll(".sw").forEach(b => {
-  b.onmousedown = e => e.preventDefault();
-  b.onclick = () => { document.execCommand("foreColor", false, b.dataset.color); guardarNota(); };
-});
-
-$("micNota").onclick = () => alternarGrabacion($("micNota"), async blob => {
-  avisar("Transcribiendo…", "trabajando", 0);
-  try{
-    const texto = await transcribir(blob);
-    if (!texto){ avisar("No se entendió el audio. Probá de nuevo.", "error"); return; }
-    $("cuerpoNota").focus();
-    document.execCommand("insertText", false, ($("cuerpoNota").textContent ? "\n" : "") + texto);
-    guardarNota();
-    avisar("Texto agregado");
-  }catch{ avisar("No se pudo transcribir", "error"); }
-});
-
-$("borrarNota").onclick = () => {
-  if (!confirm("¿Eliminar esta nota?")) return;
-  notas = notas.filter(n => n.id !== idAbierto);
-  guardar();
-  ir("notas");
-};
-
-/* --- Editor de lista --- */
-$("tituloLista").oninput = guardarLista;
-$("addItem").onclick = () => { agregarItem($("nuevoItem").value); $("nuevoItem").value = ""; $("nuevoItem").focus(); };
-$("nuevoItem").onkeydown = e => { if (e.key === "Enter") $("addItem").click(); };
-
-$("micLista").onclick = () => alternarGrabacion($("micLista"), async blob => {
-  avisar("Transcribiendo…", "trabajando", 0);
-  try{
-    const texto = await transcribir(blob);
-    if (!texto){ avisar("No se entendió el audio. Probá de nuevo.", "error"); return; }
-    texto.split(/[,;]| y | luego /i).map(t => t.trim()).filter(Boolean).forEach(agregarItem);
-    avisar("Ítem agregado");
-  }catch{ avisar("No se pudo transcribir", "error"); }
-});
-
-$("borrarLista").onclick = () => {
-  if (!confirm("¿Eliminar esta lista?")) return;
-  listas = listas.filter(l => l.id !== idAbierto);
-  guardar();
-  ir("listas");
-};
-
-/* --- Botón atrás del celular --- */
-window.addEventListener("popstate", () => {
-  if (vista === "nota")  ir("notas");
-  if (vista === "lista") ir("listas");
-});
 
 /* ============================================================
-   TEMAS
+   EVENTOS DE LA INTERFAZ
    ============================================================ */
-const Tema = {
-  NEO_BRUTALISTA: "neo-brutalista",
-  Y2K: "y2k",
-  clave: "llavero_tema"
-};
+document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => cambiarTab(b.dataset.tab));
 
-function cargarTema(){
-  const temaGuardado = localStorage.getItem(Tema.clave);
-  if (temaGuardado === Tema.Y2K){
-    document.body.classList.add("tema-y2k");
-    // Opcional: cambiar icono a estrella (ya está como star, pero podríamos cambiar)
-  } else {
-    document.body.classList.remove("tema-y2k");
+$("buscador").oninput = e => { filtro = e.target.value.trim(); pintarLista(); };
+
+const crearSegunTab = () => crear(tab === "notas" ? "nota" : "tarea");
+$("btnCrear").onclick = crearSegunTab;
+$("btnCrearVacio").onclick = crearSegunTab;
+
+$("btnCrearMas").onclick = e => abrirMenu(e.currentTarget, [
+  { txt:"Nota en blanco",          fn: () => crear("nota") },
+  { txt:"Nota dictada (voz a texto)", fn: () => crear("nota", () => dictar($("tbDictar"))) },
+  { txt:"Nota con foto",           fn: () => crear("nota", () => $("inpFoto").click()) },
+  { txt:"Nota de audio",           fn: () => crear("nota", () => $("tbAudio").click()) },
+  "-",
+  { txt:"Lista de tareas",         fn: () => crear("tarea") },
+]);
+
+$("btnMenu").onclick = e => abrirMenu(e.currentTarget, [
+  { txt:"Sincronizar llavero",           fn: sincronizar },
+  "-",
+  { txt:"Exportar todo (copia .json)",   fn: exportarTodo },
+  { txt:"Importar copia",                fn: () => $("inpImportar").click() },
+  "-",
+  { txt:"Cambiar mi nombre",             fn: mostrarBienvenida },
+]);
+
+document.querySelectorAll(".seccion").forEach(sec => {
+  const clave = "llavero_plegada_" + sec.dataset.sec;
+  sec.classList.toggle("plegada", leer(clave) === "1");
+  sec.querySelector(".plegar").onclick = () => {
+    const p = sec.classList.toggle("plegada");
+    escribir(clave, p ? "1" : "0");
+  };
+  sec.querySelector(".orden").onclick = e => {
+    const op = (txt, valor) => ({ txt:(orden === valor ? "✓ " : "") + txt, fn: () => { orden = valor; escribir("llavero_orden", valor); pintarLista(); } });
+    abrirMenu(e.currentTarget, [op("Más recientes", "recientes"), op("Más antiguas", "viejas"), op("Alfabético (A–Z)", "az")]);
+  };
+});
+
+function alternarPanel(){
+  const oculto = document.body.classList.toggle("panel-oculto");
+  $("btnAbrirPanel").hidden = !oculto;
+  escribir("llavero_panel", oculto ? "oculto" : "");
+}
+$("btnPanel").onclick = alternarPanel;
+$("btnAbrirPanel").onclick = alternarPanel;
+
+$("btnVolver").onclick = volver;
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape"){
+    if (!$("menu").hidden) cerrarMenu();
+    else if (document.querySelector(".visor")) document.querySelector(".visor").remove();
+    else if (document.body.classList.contains("zen")) alternarZen();
   }
-}
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k"){
+    e.preventDefault();
+    if (abierto && ES_MOVIL.matches) volver();
+    $("buscador").focus();
+  }
+});
 
-function guardarTema(tema){
-  localStorage.setItem(Tema.clave, tema);
-}
-
-function alternarTema(){
-  const esY2K = document.body.classList.toggle("tema-y2k");
-  const tema = esY2K ? Tema.Y2K : Tema.NEO_BRUTALISTA;
-  guardarTema(tema);
-}
+// Si se pasa de PC a celular (o al revés) con una nota abierta, mantener el estado coherente
+ES_MOVIL.addEventListener?.("change", () => { if (!abierto) document.body.classList.remove("editando"); });
 
 /* ============================================================
    ARRANQUE
    ============================================================ */
 cargar();
-cargarTema(); // Cargar tema guardado
-ir("notas");
+if (leer("llavero_panel") === "oculto" && !ES_MOVIL.matches){
+  document.body.classList.add("panel-oculto");
+  $("btnAbrirPanel").hidden = false;
+}
+pintarSaludo();
+pintarLista();
+if (leer("llavero_nombre") === null) setTimeout(mostrarBienvenida, 600);
