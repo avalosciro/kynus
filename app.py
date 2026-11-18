@@ -136,19 +136,32 @@ def obtener_eventos():
 
 
 # ---------- Archivos de la interfaz ----------
+# max_age=0 + no-cache: el celular siempre revisa si hay una versión nueva
+# (antes podía quedarse días con el CSS viejo guardado)
+def archivo(nombre, tipo):
+    resp = send_file(os.path.join(BASE, nombre), mimetype=tipo, max_age=0)
+    resp.headers['Cache-Control'] = 'no-cache, must-revalidate'
+    return resp
+
+
 @app.route('/app')
 def interfaz():
-    return send_file(os.path.join(BASE, 'index.html'))
+    return archivo('index.html', 'text/html')
 
 
 @app.route('/styles.css')
 def css():
-    return send_file(os.path.join(BASE, 'styles.css'), mimetype='text/css')
+    return archivo('styles.css', 'text/css')
+
+
+@app.route('/movil.css')
+def css_movil():
+    return archivo('movil.css', 'text/css')
 
 
 @app.route('/app.js')
 def js():
-    return send_file(os.path.join(BASE, 'app.js'), mimetype='application/javascript')
+    return archivo('app.js', 'application/javascript')
 
 
 @app.route('/')

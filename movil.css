@@ -1,0 +1,121 @@
+/* ============================================================
+   LLAVERO — diseño para celular (Android / iPhone)
+   Se activa con la clase html.movil, que pone el script del <head>
+   según el dispositivo. No depende solo del ancho de pantalla.
+   ============================================================ */
+
+html.movil{
+  --nav-alto:92px;
+  -webkit-text-size-adjust:100%;
+  text-size-adjust:100%;
+}
+html.movil body{ font-size:18px; }
+html.movil svg{ width:24px; height:24px; }
+
+html.movil .solo-pc{ display:none !important; }
+html.movil .solo-movil{ display:grid; }
+html.movil .btn-abrir-panel{ display:none !important; }
+
+/* ---------- Una sola columna: lista ↔ editor ---------- */
+html.movil .app{
+  grid-template-columns:1fr !important;
+  padding:calc(10px + var(--sup)) 10px 0;
+  gap:0 !important;
+}
+html.movil .sidebar{
+  display:flex !important;
+  border-radius:24px 24px 0 0;
+  border-bottom:none;
+  padding:20px 16px calc(var(--nav-alto) + 34px + var(--inf));
+  gap:16px;
+}
+html.movil .principal{ display:none; padding:0 18px calc(var(--nav-alto) + 44px + var(--inf)) !important; }
+html.movil body.editando .sidebar{ display:none !important; }
+html.movil body.editando .principal{ display:block; }
+
+/* ---------- Panel ---------- */
+html.movil .marca{ font-size:13px; }
+html.movil .side-head h1{ font-size:30px; line-height:1.15; }
+html.movil .saludo{ font-size:20px; }
+html.movil .icono{ width:50px; height:50px; border-radius:14px; }
+html.movil .icono.chico{ width:42px; height:42px; }
+
+html.movil .tabs{ padding:6px; }
+html.movil .tab{ padding:15px 8px; font-size:18px; gap:10px; border-radius:14px; }
+html.movil .buscar{ padding:0 18px; gap:12px; }
+html.movil .buscar input{ padding:17px 0; font-size:18px; }
+html.movil .crear{ padding:7px; }
+html.movil .btn-crear{ padding:17px 18px; font-size:18px; gap:12px; border-radius:14px; }
+
+html.movil .seccion{ padding:10px 10px 12px; border-radius:20px; }
+html.movil .sec-head{ grid-template-columns:42px 1fr 42px; }
+html.movil .sec-head h2{ font-size:19px; }
+html.movil .vacia{ font-size:17px; padding:18px 0 10px; }
+html.movil .fila{ padding:15px 14px; gap:5px; border-radius:14px; }
+html.movil .fila-titulo{ font-size:19px; }
+html.movil .fila-meta{ font-size:15px; }
+html.movil .progreso{ height:4px; }
+
+/* ---------- Editor ---------- */
+html.movil .ed-head{ top:0; padding:12px 0; gap:10px; }
+html.movil .ed-fecha{ font-size:14px; }
+html.movil .ed-titulo{ font-size:34px; padding:18px 0 14px; }
+html.movil .toolbar{
+  top:74px; padding:6px; border-radius:14px;
+  flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;
+}
+html.movil .toolbar::-webkit-scrollbar{ display:none; }
+html.movil .toolbar button{ min-width:48px; height:46px; font-size:19px; flex-shrink:0; border-radius:10px; }
+html.movil .ed-cuerpo{ font-size:19px; line-height:1.7; }
+html.movil .ed-cuerpo h2{ font-size:26px; }
+
+/* ---------- Tareas ---------- */
+html.movil .item, html.movil .nuevo-item{ padding:16px 4px; gap:16px; }
+html.movil .check{ width:30px; height:30px; border-radius:9px; }
+html.movil .check svg{ width:18px; height:18px; }
+html.movil .item-txt, html.movil .nuevo-item input{ font-size:19px; }
+html.movil .item-borrar{ opacity:1; padding:8px; }
+
+/* ---------- Adjuntos ---------- */
+html.movil .fotos{ grid-template-columns:repeat(2, 1fr); gap:12px; }
+html.movil .quitar{ width:40px; height:40px; }
+html.movil .audio{ padding:14px; }
+html.movil .audio audio{ height:48px; }
+html.movil .chip{ padding:12px 18px; font-size:17px; }
+html.movil .transcripcion{ font-size:17px; padding:14px 16px; }
+
+/* ---------- Barra inferior ---------- */
+html.movil .nav{
+  left:12px; right:12px; transform:none;
+  justify-content:space-between;
+  bottom:calc(10px + var(--inf));
+  padding:9px;
+}
+html.movil .nav-btn{ flex:1; justify-content:center; flex-direction:column; gap:5px; padding:10px 8px; font-size:14px; }
+html.movil .nav-btn svg{ width:28px; height:28px; }
+html.movil .grabar{ width:70px; height:70px; }
+html.movil .grabar svg{ width:32px; height:32px; }
+html.movil .grabar .ico-stop{ width:24px; height:24px; }
+
+/* ---------- Menús, avisos, bienvenida ---------- */
+html.movil .menu{ min-width:280px; padding:8px; border-radius:18px; }
+html.movil .menu button{ padding:16px; font-size:18px; }
+html.movil .aviso{ font-size:17px; padding:15px 20px; border-radius:14px; }
+
+html.movil .bienvenida{
+  left:14px; right:14px; width:auto;
+  bottom:calc(var(--nav-alto) + 28px + var(--inf));
+  padding:24px; gap:14px; border-radius:24px;
+}
+html.movil .marca + h3, html.movil .bienvenida h3{ font-size:24px; }
+html.movil .bien-sub{ font-size:16px; }
+html.movil .bienvenida input[type=text]{ padding:17px 18px; font-size:18px; }
+html.movil .bien-check{ font-size:16px; }
+html.movil .bien-check input{ width:24px; height:24px; }
+html.movil .btn-sec{ padding:16px 20px; font-size:17px; }
+html.movil .btn-acento{ padding:16px 24px; font-size:18px; }
+
+/* ---------- Modo lectura ---------- */
+html.movil body.zen .ed-titulo{ font-size:36px; }
+html.movil body.zen .ed-cuerpo{ font-size:21px; }
+html.movil body.zen .principal{ padding-bottom:40px !important; }

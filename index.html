@@ -10,7 +10,32 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/styles.css">
+<script>
+  // Decide el diseño según el DISPOSITIVO, no solo el ancho: celulares y tablets chicas
+  // usan movil.css aunque el navegador esté en "Sitio de escritorio".
+  (function(){
+    var h = document.documentElement;
+    var ua = navigator.userAgent || "";
+    var lado = Math.min(screen.width, screen.height);
+    var esCel = /Android|iPhone|iPod|Mobile|IEMobile|Opera Mini/i.test(ua) ||
+                (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua) && lado < 700) ||
+                (window.matchMedia && matchMedia("(pointer:coarse)").matches && lado <= 900);
+    function aplicar(){
+      var movil = esCel || window.innerWidth <= 860;
+      h.classList.toggle("movil", movil);
+      // Si el celular igual dibuja la página como si fuera una PC (viewport de ~980px),
+      // se amplía todo para que quede del tamaño real de la pantalla.
+      var escala = 1;
+      if (esCel && screen.width && window.innerWidth > screen.width * 1.3) escala = window.innerWidth / screen.width;
+      h.style.zoom = escala > 1 ? escala : "";
+    }
+    aplicar();
+    window.addEventListener("resize", aplicar);
+    window.addEventListener("orientationchange", aplicar);
+  })();
+</script>
+<link rel="stylesheet" href="/styles.css?v=4">
+<link rel="stylesheet" href="/movil.css?v=4">
 </head>
 <body>
 
@@ -207,6 +232,6 @@
 <input type="file" id="inpFoto" accept="image/*" hidden>
 <input type="file" id="inpImportar" accept="application/json" hidden>
 
-<script src="/app.js"></script>
+<script src="/app.js?v=4"></script>
 </body>
 </html>

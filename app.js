@@ -7,7 +7,8 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const ES_MOVIL = window.matchMedia("(max-width:860px)");
+const VERSION = 4;
+const esMovil = () => document.documentElement.classList.contains("movil");
 
 const $ = id => document.getElementById(id);
 const nuevoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -231,7 +232,7 @@ function crear(tipo, despues){
   abrir(d.id);
   if (despues) despues(d);
   else if (tipo === "tarea") $("nuevoItem").focus();
-  else if (!ES_MOVIL.matches) $("edTitulo").focus();
+  else if (!esMovil()) $("edTitulo").focus();
 }
 
 function abrir(id){
@@ -257,7 +258,7 @@ function abrir(id){
   $("vistaEditor").hidden = false;
   $("principal").scrollTop = 0;
   document.body.classList.add("editando");
-  if (ES_MOVIL.matches && !(history.state && history.state.editor)) history.pushState({ editor:true }, "");
+  if (esMovil() && !(history.state && history.state.editor)) history.pushState({ editor:true }, "");
   pintarLista();
 }
 
@@ -811,6 +812,8 @@ $("btnMenu").onclick = e => abrirMenu(e.currentTarget, [
   { txt:"Importar copia",                fn: () => $("inpImportar").click() },
   "-",
   { txt:"Cambiar mi nombre",             fn: mostrarBienvenida },
+  "-",
+  { txt:`Versión ${VERSION} · ${esMovil() ? "celular" : "PC"}`, fn: () => location.reload() },
 ]);
 
 document.querySelectorAll(".seccion").forEach(sec => {
@@ -844,19 +847,19 @@ document.addEventListener("keydown", e => {
   }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k"){
     e.preventDefault();
-    if (abierto && ES_MOVIL.matches) volver();
+    if (abierto && esMovil()) volver();
     $("buscador").focus();
   }
 });
 
 // Si se pasa de PC a celular (o al revés) con una nota abierta, mantener el estado coherente
-ES_MOVIL.addEventListener?.("change", () => { if (!abierto) document.body.classList.remove("editando"); });
+window.addEventListener("resize", () => { if (!abierto) document.body.classList.remove("editando"); });
 
 /* ============================================================
    ARRANQUE
    ============================================================ */
 cargar();
-if (leer("llavero_panel") === "oculto" && !ES_MOVIL.matches){
+if (leer("llavero_panel") === "oculto" && !esMovil()){
   document.body.classList.add("panel-oculto");
   $("btnAbrirPanel").hidden = false;
 }
