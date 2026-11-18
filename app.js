@@ -7,7 +7,7 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 4;
+const VERSION = 5;
 const esMovil = () => document.documentElement.classList.contains("movil");
 
 const $ = id => document.getElementById(id);
