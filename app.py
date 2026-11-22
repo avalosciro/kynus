@@ -166,7 +166,7 @@ def js():
 
 @app.route('/')
 def home():
-    return "Backend Llavero funcionando"
+    return "Backend Kynus funcionando"
 
 
 if __name__ == '__main__':

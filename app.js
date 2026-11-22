@@ -1,5 +1,5 @@
 /* ============================================================
-   LLAVERO — app.js
+   KYNUS — app.js
    Notas + tareas (localStorage), fotos y audios (IndexedDB),
    dictado, modo lectura, fijar, exportar y grabar → Google Calendar.
    ============================================================ */
@@ -7,7 +7,7 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 5;
+const VERSION = 7;
 const esMovil = () => document.documentElement.classList.contains("movil");
 
 const $ = id => document.getElementById(id);
@@ -449,7 +449,7 @@ function exportarDoc(d, formato){
 
 function exportarTodo(){
   const datos = { app:"llavero", version:1, exportado:new Date().toISOString(), docs };
-  descargar(`llavero-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(datos, null, 2), "application/json");
+  descargar(`kynus-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(datos, null, 2), "application/json");
   avisar("Copia descargada (las fotos y audios quedan en este dispositivo)", "", 4000);
 }
 
@@ -725,9 +725,12 @@ $("btnGrabar").onclick = () => grabar($("btnGrabar"), async blob => {
    ============================================================ */
 async function sincronizar(){
   if (!navigator.bluetooth){
-    avisar("Este navegador no soporta Bluetooth. Usá Chrome en Android o PC.", "error", 4000);
+    avisar("Este navegador no soporta Bluetooth. Usá Chrome en Android o PC (en iPhone no se puede).", "error", 4500);
     return;
   }
+  const btn = $("btnSync");
+  btn.classList.remove("listo");
+  btn.classList.add("ocupado");
   try{
     avisar("Buscando el llavero…", "", 0);
     const device = await navigator.bluetooth.requestDevice({
@@ -750,11 +753,16 @@ async function sincronizar(){
       await new Promise(r => setTimeout(r, 50));
     }
     avisar(evs.length ? `Llavero al día · ${evs.length} evento(s)` : "Llavero al día · sin eventos hoy", "ok");
+    btn.classList.add("listo");
+    setTimeout(() => btn.classList.remove("listo"), 3000);
   }catch(e){
-    if (e.name === "NotFoundError") $("aviso").className = "aviso";
-    else avisar("No se pudo sincronizar el llavero", "error");
+    if (e.name === "NotFoundError") $("aviso").className = "aviso";   // cerró el selector sin elegir
+    else avisar("No se pudo sincronizar. ¿Está prendido el llavero y cerca?", "error", 4000);
+  }finally{
+    btn.classList.remove("ocupado");
   }
 }
+$("btnSync").onclick = sincronizar;
 
 /* ============================================================
    BIENVENIDA (nombre)

@@ -324,6 +324,10 @@ body.zen .principal{ padding-bottom:60px; }
   color:var(--tenue); font-weight:600; font-size:14px;
 }
 .nav-btn.activo{ background:var(--caja-hover); color:var(--texto); }
+#btnSync.ocupado{ color:var(--acento); pointer-events:none; }
+#btnSync.ocupado svg{ animation:girar 1s linear infinite; }
+#btnSync.listo{ color:var(--acento); }
+@keyframes girar{ to{ transform:rotate(360deg); } }
 .grabar{
   width:54px; height:54px; border-radius:50%;
   background:var(--acento); color:var(--acento-txt);

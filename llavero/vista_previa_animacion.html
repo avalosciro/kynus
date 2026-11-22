@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Animación llavero</title>
+<style>
+  :root{ --fondo:#141210; --texto:#EDE6DF; --tenue:#A39A92; --acento:#C49A74; }
+  body{ margin:0; min-height:100vh; background:var(--fondo); color:var(--texto);
+        font-family:system-ui, sans-serif; display:flex; flex-direction:column; align-items:center; gap:18px; padding:24px 16px; box-sizing:border-box; }
+  h1{ font-size:18px; font-weight:600; margin:0; }
+  p{ margin:0; color:var(--tenue); font-size:14px; text-align:center; max-width:560px; }
+  .oled{ background:#000; padding:18px; border-radius:14px; box-shadow:0 0 0 6px #26211E, 0 20px 50px rgba(0,0,0,.6); }
+  canvas{ display:block; image-rendering:pixelated; width:min(640px, calc(100vw - 80px)); aspect-ratio:2/1; }
+  button{ background:var(--acento); color:#1F1915; border:0; border-radius:10px; padding:10px 18px; font-weight:600; font-size:15px; cursor:pointer; }
+  .tira{ display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; }
+  .tira figure{ margin:0; }
+  .tira canvas{ width:256px; background:#000; border-radius:6px; }
+  .tira figcaption{ font-size:12px; color:var(--tenue); margin-top:4px; }
+</style>
+</head>
+<body>
+<h1>Animación de inicio del llavero</h1>
+<p>Simulación píxel a píxel de la pantalla OLED de 128×64. Usa la misma lógica que <code>animacion_inicio.h</code>.</p>
+<div class="oled"><canvas id="pantalla" width="128" height="64"></canvas></div>
+<button id="otraVez">Ver de nuevo</button>
+<div class="tira" id="tira"></div>
+
+<script>
+/* ---------- Pantalla monocromática 128x64 (como Adafruit_SSD1306) ---------- */
+class Oled{
+  constructor(){ this.px = new Uint8Array(128*64); }
+  clearDisplay(){ this.px.fill(0); }
+  getPixel(x,y){ return x>=0&&y>=0&&x<128&&y<64 ? this.px[y*128+x] : 0; }
+  drawPixel(x,y,c){ x=Math.round(x); y=Math.round(y); if(x>=0&&y>=0&&x<128&&y<64) this.px[y*128+x]=c; }
+  drawLine(x0,y0,x1,y1,c){
+    let dx=Math.abs(x1-x0), sx=x0<x1?1:-1, dy=-Math.abs(y1-y0), sy=y0<y1?1:-1, e=dx+dy;
+    for(;;){ this.drawPixel(x0,y0,c); if(x0===x1&&y0===y1) break; const e2=2*e; if(e2>=dy){e+=dy;x0+=sx;} if(e2<=dx){e+=dx;y0+=sy;} }
+  }
+  drawFastHLine(x,y,w,c){ for(let i=0;i<w;i++) this.drawPixel(x+i,y,c); }
+  fillTriangle(x0,y0,x1,y1,x2,y2,c){
+    const minX=Math.min(x0,x1,x2), maxX=Math.max(x0,x1,x2), minY=Math.min(y0,y1,y2), maxY=Math.max(y0,y1,y2);
+    const area=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);
+    if(area===0){ this.drawLine(x0,y0,x1,y1,c); this.drawLine(x1,y1,x2,y2,c); return; }
+    for(let y=minY;y<=maxY;y++) for(let x=minX;x<=maxX;x++){
+      const w0=(x1-x)*(y2-y)-(x2-x)*(y1-y), w1=(x2-x)*(y0-y)-(x0-x)*(y2-y), w2=(x0-x)*(y1-y)-(x1-x)*(y0-y);
+      if((w0>=0&&w1>=0&&w2>=0)||(w0<=0&&w1<=0&&w2<=0)) this.drawPixel(x,y,c);
+    }
+  }
+  fillCircle(cx,cy,r,c){ for(let y=-r;y<=r;y++) for(let x=-r;x<=r;x++) if(x*x+y*y<=r*r) this.drawPixel(cx+x,cy+y,c); }
+  fillRoundRect(ox,oy,w,h,r,c){ for(let y=oy;y<oy+h;y++) for(let x=ox;x<ox+w;x++) if(dentroRedondeado(x,y,ox,oy,w,h,r)) this.drawPixel(x,y,c); }
+  pintar(canvas){
+    const g=canvas.getContext("2d"), img=g.createImageData(128,64);
+    for(let i=0;i<this.px.length;i++){ const v=this.px[i]?255:0; img.data.set([v, v, v, 255], i*4); }
+    g.putImageData(img,0,0);
+  }
+}
+
+/* ---------- Igual que animacion_inicio.h ---------- */
+const BLANCO=1, NEGRO=0, PI=Math.PI, Q=PI/4;
+const CXI=64, CYI=31, CX=CXI, CY=CYI;
+const T_PUNTO=150, T_LINEA=300, T_GIRO=800, T_SELLO=1700, T_DISUELVE=2650, T_FIN=3950;
+const ESTRELLA=[[0,36,3.5],[PI,36,3.5],[-PI/2,28,4.5],[PI/2,32,4.5],[-Q,15,2.8],[-3*Q,13,2.8],[Q,13,2.8],[3*Q,14,2.8]];
+const MOTAS=[[18,100,3],[32,92,2],[55,105,3],[70,88,2],[112,95,3],[128,102,2],[150,90,3],[165,104,2],[196,98,3],[212,90,2],[236,104,3],[250,92,2],[290,100,2],[305,94,3],[328,104,2],[342,90,3]];
+const OJO={ w:36, h:36, r:8, lx:23, ly:14 }; OJO.rx=OJO.lx+OJO.w+10; OJO.ry=OJO.ly;   // RoboEyes por defecto
+const MAX_PART=160;
+const R=Math.round;
+
+const lim=v=>v<0?0:v>1?1:v;
+const tramo=(t,a,b)=>lim((t-a)/(b-a));
+const suave=x=>x<0.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+const salida=x=>1-Math.pow(1-x,3);
+const rebote=x=>{ const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2); };
+function ruido(x,y){
+  let n=(Math.imul(x>>>0,374761393)+Math.imul(y>>>0,668265263))>>>0;
+  n=Math.imul((n^(n>>>13))>>>0,1274126177)>>>0;
+  return ((n^(n>>>16))>>>0)&0xFF;
+}
+function dentroRedondeado(x,y,ox,oy,w,h,r){
+  if(x<ox||y<oy||x>=ox+w||y>=oy+h) return false;
+  const cx=x<ox+r?ox+r:(x>ox+w-1-r?ox+w-1-r:x), cy=y<oy+r?oy+r:(y>oy+h-1-r?oy+h-1-r:y);
+  const dx=x-cx, dy=y-cy; return dx*dx+dy*dy<=r*r;
+}
+function brazo(d,ang,largo,ancho,pico=0.3){
+  if(largo<0.5) return;
+  const dx=Math.cos(ang), dy=Math.sin(ang), px=-dy, py=dx;
+  const bx=CX+dx*largo*pico, by=CY+dy*largo*pico, tx=R(CX+dx*largo), ty=R(CY+dy*largo);
+  d.fillTriangle(CXI,CYI,R(bx+px*ancho),R(by+py*ancho),tx,ty,BLANCO);
+  d.fillTriangle(CXI,CYI,R(bx-px*ancho),R(by-py*ancho),tx,ty,BLANCO);
+  d.drawLine(CXI,CYI,tx,ty,BLANCO);
+}
+function estrella(d,rot,esc,largoH,anchoH,kV,kD,pico=0.3){
+  ESTRELLA.forEach(([ang,largo,ancho],i)=>{
+    let L,g;
+    if(i<2){ L=largoH; g=anchoH; } else if(i<4){ L=largo*kV; g=ancho*lim(kV*1.3); } else { L=largo*kD; g=ancho*lim(kD); }
+    brazo(d,ang+rot,L*esc,g*esc,pico);
+  });
+}
+function grabado(d,k,esc){
+  if(k<=0) return;
+  ESTRELLA.forEach(([ang,largo],i)=>{
+    const L=largo*esc*(i<4?0.55:0.6)*k; if(L<1) return;
+    d.drawLine(CXI,CYI,R(CX+Math.cos(ang)*L),R(CY+Math.sin(ang)*L),NEGRO);
+  });
+}
+function grano(d){ for(let y=0;y<64;y++) for(let x=24;x<104;x++) if(ruido(x,y)<9&&d.getPixel(x,y)) d.drawPixel(x,y,NEGRO); }
+function motas(d,t){
+  MOTAS.forEach(([a,r,l],i)=>{
+    const k=salida(lim((t-i*25)/180)); if(k<=0) return;
+    const ar=a*PI/180, dx=Math.cos(ar), dy=Math.sin(ar), e=0.9+0.1*k;
+    const x=CX+dx*50*(r/100)*e, y=CY+dy*27*(r/100)*e, ll=l*k;
+    d.drawLine(R(x),R(y),R(x+dx*ll),R(y+dy*ll*0.6),BLANCO);
+  });
+}
+function estrellaFinal(d){ estrella(d,0,1,36,3.5,1,1); grabado(d,1,1); grano(d); }
+
+// Generador de azar con semilla (para que la tira de cuadros sea estable)
+let semilla=1;
+const azar=n=>{ semilla=(Math.imul(semilla,1664525)+1013904223)>>>0; return semilla%n; };
+
+function nuevaAnimacion(){ return { part:[], capturada:false }; }
+
+function cuadro(d,est,t){
+  const {w,h,r,lx,ly,rx,ry}=OJO;
+  d.clearDisplay();
+  if(t>=T_FIN){ d.fillRoundRect(lx,ly,w,h,r,BLANCO); d.fillRoundRect(rx,ry,w,h,r,BLANCO); return; }
+  if(t<T_PUNTO){}
+  else if(t<T_LINEA){ d.fillCircle(CXI,CYI,R(salida(tramo(t,T_PUNTO,T_LINEA))*2),BLANCO); }
+  else if(t<T_GIRO){
+    const k=salida(tramo(t,T_LINEA,T_LINEA+300));
+    const g=(t>T_LINEA+300&&Math.floor(t/45)%2)?0.7:1.3;
+    estrella(d,0,1,2+k*56,g,0,0,0.06);
+  }
+  else if(t<T_SELLO){
+    const u=suave(tramo(t,T_GIRO,T_SELLO));
+    estrella(d,u*2*PI,1,58+(36-58)*u,1.3+(3.5-1.3)*u,salida(lim((u-0.1)/0.8)),rebote(lim((u-0.45)/0.55)),0.06+0.24*u);
+  }
+  else if(t<T_DISUELVE){
+    const s=t-T_SELLO, esc=1+0.10*Math.exp(-s/90)*Math.sin(s/40);
+    estrella(d,0,esc,36,3.5,1,1);
+    grabado(d,salida(tramo(t,T_SELLO+80,T_SELLO+400)),esc);
+    if(s>60) grano(d);
+    if(s>100) motas(d,s-100);
+  }
+  else{
+    const s=t-T_DISUELVE;
+    if(!est.capturada){
+      d.clearDisplay(); estrellaFinal(d);
+      let vistos=0; const part=est.part;
+      for(let y=0;y<64;y++) for(let x=16;x<112;x++){
+        if(!d.getPixel(x,y)) continue;
+        const slot=vistos<MAX_PART?vistos:azar(vistos+1); vistos++;
+        if(slot<MAX_PART) part[slot]={sx:x,sy:y};
+      }
+      part.length=Math.min(vistos,MAX_PART);
+      for(const p of part){
+        const izq=p.sx<CX||(p.sx===CX&&azar(2));
+        const ox=izq?lx:rx, oy=izq?ly:ry;
+        let tx=ox+w/2, ty=oy+h/2;
+        for(let i=0;i<6;i++){ const cx=ox+azar(w), cy=oy+azar(h); if(dentroRedondeado(cx,cy,ox,oy,w,h,r)){ tx=cx; ty=cy; break; } }
+        p.tx=tx; p.ty=ty;
+        const vx=tx-p.sx, vy=ty-p.sy; let m=Math.hypot(vx,vy); if(m<0.01) m=1;
+        p.nx=-vy/m; p.ny=vx/m; p.arco=azar(25)-12;
+        p.retraso=Math.floor(260*(1-lim(Math.hypot(p.sx-CX,p.sy-CY)/36))+azar(90));
+      }
+      est.capturada=true; d.clearDisplay();
+    }
+    const f=tramo(t,T_DISUELVE,T_DISUELVE+380);
+    if(f<1){
+      estrellaFinal(d); if(s<150) motas(d,1000);
+      const umbral=Math.floor(f*255);
+      for(let y=0;y<64;y++) for(let x=16;x<112;x++) if(ruido(x+7,y+3)<umbral&&d.getPixel(x,y)) d.drawPixel(x,y,NEGRO);
+    }
+    const o=tramo(t,T_DISUELVE+650,T_DISUELVE+1080);
+    if(o>=1){ d.fillRoundRect(lx,ly,w,h,r,BLANCO); d.fillRoundRect(rx,ry,w,h,r,BLANCO); }
+    else if(o>0){
+      const umbral=Math.floor(o*255);
+      for(let y=ly;y<ly+h;y++) for(let x=0;x<w;x++){
+        if(ruido(lx+x,y)<umbral&&dentroRedondeado(lx+x,y,lx,ly,w,h,r)) d.drawPixel(lx+x,y,BLANCO);
+        if(ruido(rx+x,y)<umbral&&dentroRedondeado(rx+x,y,rx,ry,w,h,r)) d.drawPixel(rx+x,y,BLANCO);
+      }
+    }
+    for(const p of est.part){
+      const a=(s-p.retraso)/700;
+      for(let k=0;k<2;k++){
+        const q=suave(lim(a-k*0.05)), bomba=p.arco*Math.sin(PI*q);
+        d.drawPixel(R(p.sx+(p.tx-p.sx)*q+p.nx*bomba), R(p.sy+(p.ty-p.sy)*q+p.ny*bomba), BLANCO);
+      }
+    }
+  }
+}
+
+/* ---------- Animación en vivo ---------- */
+const pantalla=document.getElementById("pantalla"), oled=new Oled();
+let est, inicio;
+function reproducir(){ semilla=Date.now()>>>0; est=nuevaAnimacion(); inicio=performance.now(); requestAnimationFrame(paso); }
+function paso(ahora){
+  const t=ahora-inicio;
+  cuadro(oled,est,t); oled.pintar(pantalla);
+  if(t<T_FIN+1500) requestAnimationFrame(paso);
+}
+document.getElementById("otraVez").onclick=reproducir;
+reproducir();
+
+/* ---------- Tira de cuadros (?tira) para revisar cada etapa ---------- */
+if(location.search.includes("tira")){
+  semilla=7; const e=nuevaAnimacion(), o=new Oled();
+  [200,450,700,950,1150,1350,1550,1720,1800,2100,2700,2850,3050,3300,3550,4000].forEach(t=>{
+    cuadro(o,e,t);
+    const fig=document.createElement("figure"), c=document.createElement("canvas");
+    c.width=128; c.height=64; o.pintar(c);
+    const cap=document.createElement("figcaption"); cap.textContent=t+" ms";
+    fig.append(c,cap); document.getElementById("tira").appendChild(fig);
+  });
+}
+</script>
+</body>
+</html>
