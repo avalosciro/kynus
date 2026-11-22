@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kynus · Tu estrella guía para el día a día</title>
+<meta name="description" content="Kynus es un llavero inteligente: le hablás al celular, el evento se agenda solo en Google Calendar y el llavero te muestra en su pantallita lo que tenés hoy.">
+<meta name="theme-color" content="#7FB9E6">
+<meta property="og:title" content="Kynus · Tu estrella guía para el día a día">
+<meta property="og:description" content="Un llavero inteligente que te organiza la rutina. Como un tamagochi, pero que sirve para algo.">
+<link rel="icon" href="/iconos/favicon.svg?v=7" type="image/svg+xml">
+<link rel="icon" href="/iconos/favicon-32.png?v=7" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/iconos/icono-180.png?v=7">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:ital,wght@0,400..800;1,400..800&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/presentacion/presentacion.css?v=1">
+<script>
+  // La intro (la pantallita que se prende) se ve una vez por visita.
+  (function(){
+    var h = document.documentElement, q = location.search;
+    var visto = false;
+    try { visto = sessionStorage.getItem('kynus_intro') === '1'; } catch (e) {}
+    var quieto = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!visto && !quieto && q.indexOf('sinintro') < 0) h.classList.add('con-intro');
+    h.classList.add('js');
+    setTimeout(function(){ h.classList.remove('con-intro'); }, 9000); // por si algo falla
+  })();
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js"></script>
+<script type="module" src="/presentacion/principal.js?v=1"></script>
+</head>
+<body>
+<a class="saltar" href="#inicio">Saltar al contenido</a>
+
+<!-- La estrella del logo, para usar en cualquier lado -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="estrella" viewBox="-37 -29 74 62">
+      <g style="fill: currentColor">
+        <polygon points="0,0 10.8,-3.5 36,0 10.8,3.5"/>
+        <polygon points="0,0 -10.8,3.5 -36,0 -10.8,-3.5"/>
+        <polygon points="0,0 -4.5,-8.4 0,-28 4.5,-8.4"/>
+        <polygon points="0,0 4.5,9.6 0,32 -4.5,9.6"/>
+        <polygon points="0,0 1.2,-5.16 10.61,-10.61 5.16,-1.2"/>
+        <polygon points="0,0 -4.74,-0.78 -9.19,-9.19 -0.78,-4.74"/>
+        <polygon points="0,0 4.74,0.78 9.19,9.19 0.78,4.74"/>
+        <polygon points="0,0 -0.99,4.95 -9.9,9.9 -4.95,0.99"/>
+      </g>
+      <g style="stroke: var(--tallado, transparent); stroke-width: 1.3; stroke-linecap: round">
+        <line x1="0" y1="0" x2="19.8" y2="0"/><line x1="0" y1="0" x2="-19.8" y2="0"/>
+        <line x1="0" y1="0" x2="0" y2="-15.4"/><line x1="0" y1="0" x2="0" y2="17.6"/>
+        <line x1="0" y1="0" x2="6.36" y2="-6.36"/><line x1="0" y1="0" x2="-5.52" y2="-5.52"/>
+        <line x1="0" y1="0" x2="5.52" y2="5.52"/><line x1="0" y1="0" x2="-5.94" y2="5.94"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- Fondo: cielo con nubes, noche y la escena 3D -->
+<div class="cielo" aria-hidden="true">
+  <div class="nubes">
+    <span class="nube n1"></span><span class="nube n2"></span><span class="nube n3"></span>
+    <span class="nube n4"></span><span class="nube n5"></span><span class="nube n6"></span>
+  </div>
+</div>
+<div class="noche" aria-hidden="true"></div>
+<!-- Capa de fondo: palabras gigantes y cintas que pasan POR DETRÁS de lo 3D -->
+<div class="capa-fondo" aria-hidden="true">
+  <p class="palabra-gigante" id="palabraLlavero"><span>PRENDELO ★ PRENDELO ★ PRENDELO ★</span></p>
+  <p class="palabra-gigante" id="palabraAdentro"><span>ADENTRO ★ ADENTRO ★ ADENTRO ★</span></p>
+  <div class="cintas" id="cintas">
+    <div class="cinta cinta-1"><div class="cinta-pista">KYNUS ★ KYNUS ★ KYNUS ★ KYNUS ★&nbsp;</div></div>
+    <div class="cinta cinta-2"><div class="cinta-pista">TU ESTRELLA GUÍA ★ TU ESTRELLA GUÍA ★&nbsp;</div></div>
+  </div>
+</div>
+<canvas id="lienzo3d" aria-hidden="true"></canvas>
+
+<main id="principal">
+
+  <!-- ============ 0 · INICIO ============ -->
+  <section id="inicio" class="heroe" aria-labelledby="tituloHeroe">
+    <div class="heroe-chispas" aria-hidden="true">
+      <svg class="chispa c1"><use href="#estrella"/></svg>
+      <svg class="chispa c2"><use href="#estrella"/></svg>
+      <svg class="chispa c3"><use href="#estrella"/></svg>
+      <svg class="chispa c4"><use href="#estrella"/></svg>
+      <svg class="chispa c5"><use href="#estrella"/></svg>
+    </div>
+    <div class="heroe-respaldo" aria-hidden="true"><svg><use href="#estrella"/></svg></div>
+
+    <div class="heroe-texto">
+      <p class="etiqueta-pixel heroe-etiqueta">kynus.exe · v1.0</p>
+      <h1 id="tituloHeroe" class="heroe-titulo" data-partir>KYNUS</h1>
+      <p class="heroe-lema">Tu estrella guía para el día a día</p>
+      <p class="heroe-sub">Un llavero inteligente que te organiza la rutina. Le hablás al celular, se agenda solo y el llavero te lo muestra.</p>
+      <div class="heroe-botones">
+        <a class="boton boton-rosa iman" href="/app">Abrir la app <span aria-hidden="true">→</span></a>
+        <a class="boton boton-blanco iman" href="#llavero">Conocelo</a>
+      </div>
+    </div>
+
+    <div class="ventana heroe-ventana" aria-hidden="true">
+      <div class="ventana-barra"><span>bajá.exe</span><span class="ventana-botones"><i>–</i><i>□</i><i>×</i></span></div>
+      <div class="ventana-cuerpo"><canvas class="oled" id="oledHeroe"></canvas></div>
+      <p class="heroe-baja etiqueta-pixel">scrolleá ↓</p>
+    </div>
+  </section>
+
+  <!-- ============ 1 · EL LLAVERO (se prende con el scroll) ============ -->
+  <section id="llavero" class="llavero" aria-labelledby="tituloLlavero">
+    <div class="escenario">
+      <div class="llavero-textos">
+        <p class="etiqueta-pixel">01 · el llavero</p>
+        <h2 id="tituloLlavero" class="solo-lectores">Así se prende el llavero</h2>
+        <ol class="fases">
+          <li class="fase activa" data-fase="0"><span class="fase-num">01</span><strong>Un clic.</strong><span>Se prende la pantalla: un puntito justo en el medio.</span></li>
+          <li class="fase" data-fase="1"><span class="fase-num">02</span><strong>Una línea, como las teles viejas.</strong><span>El punto se estira y titila.</span></li>
+          <li class="fase" data-fase="2"><span class="fase-num">03</span><strong>Gira y se vuelve estrella.</strong><span>Una vuelta completa y le crecen las puntas.</span></li>
+          <li class="fase" data-fase="3"><span class="fase-num">04</span><strong>Se sella.</strong><span>Como un sello de goma: líneas talladas y motitas de tinta.</span></li>
+          <li class="fase" data-fase="4"><span class="fase-num">05</span><strong>Se desarma…</strong><span>La estrella se hace granitos que viajan en curva.</span></li>
+          <li class="fase" data-fase="5"><span class="fase-num">06</span><strong>…y te mira.</strong><span class="texto-raton">Son los ojos de Kynus. Mové el mouse.</span></li>
+        </ol>
+      </div>
+      <div class="llavero-medidor" aria-hidden="true">
+        <span class="etiqueta-pixel">t = <output id="tiempoOled">0000</output> ms</span>
+        <span class="medidor"><i id="medidorOled"></i></span>
+      </div>
+      <div class="ventana llavero-respaldo" aria-hidden="true">
+        <div class="ventana-barra"><span>llavero.exe</span><span class="ventana-botones"><i>–</i><i>□</i><i>×</i></span></div>
+        <div class="ventana-cuerpo"><canvas class="oled" id="oledRespaldo"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2 · CÓMO FUNCIONA (scroll horizontal) ============ -->
+  <section id="como" class="como" aria-labelledby="tituloComo">
+    <div class="escenario">
+      <div class="pista" id="pistaComo">
+        <div class="panel panel-titulo">
+          <p class="etiqueta-pixel">02 · cómo funciona</p>
+          <h2 id="tituloComo" class="titulo-cinetico" data-partir>Cómo funciona</h2>
+          <p class="panel-sub revelar">Del audio a tu llavero en cinco pasos. Seguí bajando <span aria-hidden="true">→</span></p>
+        </div>
+
+        <article class="paso" style="--color: var(--rosa)">
+          <header class="paso-cabeza"><span class="paso-num">1</span><div><h3>Grabás un audio</h3><p>Con el botón grande de la app.</p></div></header>
+          <div class="paso-ilus ilus-grabar">
+            <div class="mic-grande" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
+            <div class="ondas" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <p class="globo">“<span data-tipear="Dentista el jueves a las 5">Dentista el jueves a las 5</span>”</p>
+          </div>
+        </article>
+
+        <article class="paso" style="--color: var(--lila)">
+          <header class="paso-cabeza"><span class="paso-num">2</span><div><h3>Se pasa a texto</h3><p>Lo transcribe Whisper, vía Groq.</p></div></header>
+          <div class="paso-ilus">
+            <div class="ventana ventana-mini">
+              <div class="ventana-barra"><span>whisper.exe</span><span class="ventana-botones"><i>–</i><i>×</i></span></div>
+              <div class="ventana-cuerpo consola">
+                <span class="etiqueta-pixel">&gt; transcribiendo…</span>
+                <p><span data-tipear="dentista el jueves a las cinco">dentista el jueves a las cinco</span><i class="caret" aria-hidden="true"></i></p>
+              </div>
+            </div>
+            <p class="chip">whisper-large-v3-turbo</p>
+          </div>
+        </article>
+
+        <article class="paso" style="--color: var(--manteca)">
+          <header class="paso-cabeza"><span class="paso-num">3</span><div><h3>La IA arma el evento</h3><p>Saca el título, la fecha y la hora.</p></div></header>
+          <div class="paso-ilus">
+            <div class="ventana ventana-mini">
+              <div class="ventana-barra"><span>evento.json</span><span class="ventana-botones"><i>–</i><i>×</i></span></div>
+              <pre class="ventana-cuerpo json"><span class="l">{</span><span class="l">  <b>"titulo"</b>: <i>"Dentista"</i>,</span><span class="l">  <b>"fecha"</b>: <i id="jsonFecha">"2026-11-26"</i>,</span><span class="l">  <b>"hora"</b>: <i>"17:00"</i></span><span class="l">}</span></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="paso" style="--color: var(--menta)">
+          <header class="paso-cabeza"><span class="paso-num">4</span><div><h3>Se guarda</h3><p>En tu Google Calendar.</p></div></header>
+          <div class="paso-ilus">
+            <div class="mini-cal" id="miniCal" aria-label="Calendario con el evento agendado"></div>
+          </div>
+        </article>
+
+        <article class="paso" style="--color: var(--celeste-fuerte)">
+          <header class="paso-cabeza"><span class="paso-num">5</span><div><h3>Llega al llavero</h3><p>Por Bluetooth, y lo ves en la pantalla.</p></div></header>
+          <div class="paso-ilus ilus-ble">
+            <div class="tel-icono" aria-hidden="true"><span></span></div>
+            <div class="ble-ondas" aria-hidden="true"><i></i><i></i><i></i></div>
+            <div class="ventana ventana-mini ventana-oled">
+              <div class="ventana-barra"><span>llavero</span></div>
+              <div class="ventana-cuerpo"><canvas class="oled" id="oledPaso" role="img" aria-label="La pantalla del llavero muestra: Evento 1 de 1, hora 17:00, Dentista"></canvas></div>
+            </div>
+          </div>
+        </article>
+
+        <div class="panel panel-final">
+          <p class="pastilla">Todo en la nube, gratis y sin compu prendida</p>
+        </div>
+      </div>
+      <div class="como-progreso" aria-hidden="true"><i id="progresoComo"></i></div>
+    </div>
+  </section>
+
+  <!-- ============ 3 · LOS OJOS ============ -->
+  <section id="ojos" class="ojos" aria-labelledby="tituloOjos">
+    <div class="ojos-cabecera">
+      <p class="etiqueta-pixel">03 · la idea</p>
+      <h2 id="tituloOjos" class="titulo-cinetico" data-partir>Un tamagochi, pero útil</h2>
+      <p class="ojos-sub revelar">Tiene ojos: te mira, parpadea, se aburre. Y cuando tenés algo para hacer, te avisa. <b>Probalo:</b> es el mismo comportamiento que tiene el llavero.</p>
+    </div>
+    <div class="ojos-cuerpo">
+      <div class="ojos-perspectiva">
+        <div class="ventana ventana-grande" id="ventanaOjos">
+          <div class="ventana-barra"><span>mi_dia.exe</span><span class="ventana-botones"><i>–</i><i>□</i><i>×</i></span></div>
+          <div class="ventana-cuerpo"><canvas class="oled" id="oledOjos" role="img" aria-label="Pantalla del llavero con los ojos de Kynus"></canvas></div>
+        </div>
+      </div>
+      <div class="ojos-controles">
+        <div class="control-boton">
+          <button class="boton-fisico" id="botonFisico" type="button" aria-describedby="leyendaBoton">
+            <svg class="anillo" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" pathLength="100"/></svg>
+            <span class="solo-lectores">El botón del llavero</span>
+          </button>
+          <ul class="leyenda" id="leyendaBoton">
+            <li><b>1 clic</b> prende · vuelve a los ojos</li>
+            <li><b>2 clics</b> eventos de hoy</li>
+            <li><b>Mantener 3 s</b> apaga</li>
+          </ul>
+        </div>
+        <div class="animos" role="group" aria-label="Humor de los ojos">
+          <button type="button" class="boton-98 activo" data-animo="normal">Normal</button>
+          <button type="button" class="boton-98" data-animo="feliz">Feliz</button>
+          <button type="button" class="boton-98" data-animo="cansado">Cansado</button>
+          <button type="button" class="boton-98" data-animo="enojado">Enojado</button>
+          <button type="button" class="boton-98" data-accion="confundido">Confundido</button>
+          <button type="button" class="boton-98" data-accion="risa">Risa</button>
+        </div>
+        <p class="estado-pixel etiqueta-pixel" aria-live="polite">estado: <span id="estadoOjos">apagado</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4 · EL NOMBRE (estrella polar) ============ -->
+  <section id="nombre" class="nombre" aria-labelledby="tituloNombre">
+    <div class="escenario">
+      <canvas id="cieloNoche" aria-hidden="true"></canvas>
+      <svg class="polar" aria-hidden="true"><use href="#estrella"/></svg>
+      <div class="nombre-texto">
+        <p class="etiqueta-pixel">04 · el nombre</p>
+        <h2 id="tituloNombre" class="frase-gira">
+          <span class="palabra">Todo</span> <span class="palabra">el</span> <span class="palabra">cielo</span> <span class="palabra">gira.</span><br>
+          <span class="palabra destacada">Ella</span> <span class="palabra destacada">no.</span>
+        </h2>
+        <div class="ventana ventana-polar">
+          <div class="ventana-barra"><span>estrella_polar.txt</span><span class="ventana-botones"><i>–</i><i>□</i><i>×</i></span></div>
+          <div class="ventana-cuerpo">
+            <p><b>Kynus viene de Kynosoura, el nombre griego de la estrella polar.</b> Mientras todo el cielo gira, ella se queda quieta. Por eso sirvió durante siglos para no perder el rumbo.</p>
+            <p class="nombre-final"><b><i>El llavero hace lo mismo con tu día.</i></b></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5 · ADENTRO (vista explotada) ============ -->
+  <section id="adentro" class="adentro" aria-labelledby="tituloAdentro">
+    <div class="escenario">
+      <div class="adentro-cabecera">
+        <p class="etiqueta-pixel">05 · adentro</p>
+        <h2 id="tituloAdentro" class="titulo-cinetico" data-partir>Lo que lleva adentro</h2>
+      </div>
+      <div class="etiquetas3d" aria-hidden="true">
+        <div class="etiqueta3d" data-parte="frente" data-lado="der"><i>1</i><p><b>Carcasa</b><span>impresa en 3D</span></p></div>
+        <div class="etiqueta3d" data-parte="oled" data-lado="izq"><i>2</i><p><b>OLED 0,96″</b><span>128 × 64 píxeles</span></p></div>
+        <div class="etiqueta3d" data-parte="capa2" data-lado="der"><i>3</i><p><b>ESP32-C3 + TP4056</b><span>cerebro con Bluetooth y carga USB-C</span></p></div>
+        <div class="etiqueta3d" data-parte="capa3" data-lado="izq"><i>4</i><p><b>Batería LiPo 502030</b><span>recargable, con interruptor</span></p></div>
+        <div class="etiqueta3d" data-parte="tapa" data-lado="der"><i>5</i><p><b>Tapa</b><span>dos tornillos M2</span></p></div>
+        <div class="etiqueta3d" data-parte="tecla" data-lado="izq"><i>6</i><p><b>Un solo botón</b><span>en la espalda</span></p></div>
+      </div>
+      <ol class="leyenda3d" aria-hidden="true">
+        <li><i>1</i>Carcasa</li><li><i>2</i>OLED 0,96″</li><li><i>3</i>ESP32-C3 + TP4056</li>
+        <li><i>4</i>Batería LiPo</li><li><i>5</i>Tapa</li><li><i>6</i>Un solo botón</li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="ficha" class="ficha" aria-labelledby="tituloFicha">
+    <h2 id="tituloFicha" class="solo-lectores">Ficha técnica</h2>
+    <ul class="bento">
+      <li class="bento-item b-lila b-grande"><span class="etiqueta-pixel">cerebro</span>
+        <svg class="placa" viewBox="0 0 220 180" aria-hidden="true">
+          <rect x="30" y="10" width="160" height="160" rx="10" fill="#17171F" stroke="#111" stroke-width="4"/>
+          <g fill="#E8C46C">
+            <circle cx="46" cy="34" r="5"/><circle cx="46" cy="56" r="5"/><circle cx="46" cy="78" r="5"/><circle cx="46" cy="100" r="5"/><circle cx="46" cy="122" r="5"/><circle cx="46" cy="144" r="5"/>
+            <circle cx="174" cy="34" r="5"/><circle cx="174" cy="56" r="5"/><circle cx="174" cy="78" r="5"/><circle cx="174" cy="100" r="5"/><circle cx="174" cy="122" r="5"/><circle cx="174" cy="144" r="5"/>
+          </g>
+          <rect x="70" y="40" width="80" height="74" rx="4" fill="#D4D8E2" stroke="#111" stroke-width="3"/>
+          <path d="M76 52h68M76 64h68M76 76h68M76 88h68M76 100h68" stroke="#AEB3C0" stroke-width="2"/>
+          <text x="110" y="82" text-anchor="middle" font-family="'Press Start 2P', monospace" font-size="11" fill="#111">C3</text>
+          <path d="M80 18h12l-6 8h12l-6 8h12" fill="none" stroke="#F49AD6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="92" y="150" width="36" height="22" rx="7" fill="#C8CDD8" stroke="#111" stroke-width="3"/>
+          <circle cx="152" cy="134" r="5" fill="#7CFFB2" stroke="#111" stroke-width="2"/>
+        </svg>
+        <h3>ESP32-C3 Super Mini</h3><p>Chico, barato y con Bluetooth de bajo consumo para hablar con el celular.</p></li>
+      <li class="bento-item b-negro"><canvas class="oled" id="oledBento" aria-hidden="true"></canvas><h3>OLED 0,96″ · 128×64</h3><p>Ahí viven los ojos y tus eventos.</p></li>
+      <li class="bento-item b-menta"><span class="etiqueta-pixel">energía</span><h3>LiPo 502030 + USB-C</h3><p>Batería recargable con cargador TP4056. Nada de pilas.</p></li>
+      <li class="bento-item b-manteca"><span class="etiqueta-pixel">control</span><h3>Un solo botón</h3><p>Clic, doble clic o mantener. Nada más.</p></li>
+      <li class="bento-item b-rosa"><span class="etiqueta-pixel">forma</span><h3>Estrella o gota</h3><p>Carcasa impresa en 3D: frente, tapa y tecla, con dos tornillos M2.</p></li>
+      <li class="bento-item b-celeste b-entero"><span class="etiqueta-pixel">la nube</span>
+        <div class="flujo" aria-hidden="true"><span>tu voz</span><i>→</i><span>Render</span><i>→</i><span>Groq</span><i>→</i><span>Google Calendar</span><i>→</i><span>el llavero</span></div>
+        <h3>100 % gratis</h3><p>Render para el servidor, Groq para entender el audio y Google Calendar para guardar. Sin pagar nada y sin la compu prendida.</p></li>
+    </ul>
+  </section>
+
+  <!-- ============ 6 · LA APP ============ -->
+  <section id="app" class="app" aria-labelledby="tituloApp">
+    <div class="escenario">
+      <div class="app-textos">
+        <p class="etiqueta-pixel">06 · la app</p>
+        <h2 id="tituloApp" class="titulo-cinetico" data-partir>Y en el celular…</h2>
+        <ol class="app-pasos">
+          <li class="activo" data-paso="0"><b>Notas y listas</b><span>Con fotos, audios y dictado. Se guardan en tu celular.</span></li>
+          <li data-paso="1"><b>Un botón para grabar</b><span>Decís qué, qué día y a qué hora.</span></li>
+          <li data-paso="2"><b>Se agenda solo</b><span>Aparece en tu Google Calendar.</span></li>
+          <li data-paso="3"><b>Lo mandás al llavero</b><span>Por Bluetooth, con un toque.</span></li>
+        </ol>
+      </div>
+      <div class="app-escena">
+        <div class="telefono-perspectiva">
+          <div class="telefono" id="telefono" data-paso="0" aria-hidden="true">
+            <div class="tel-pantalla">
+              <div class="tel-estado"><span>9:41</span><span class="tel-iconos"><i></i><i></i><i></i></span></div>
+              <div class="tel-cabeza"><small>KYNUS</small><b>Notas</b></div>
+              <div class="tel-buscar">Buscar</div>
+              <ul class="tel-notas">
+                <li><b>Lista del súper</b><span>Leche, pan, yerba…</span></li>
+                <li><b>Feria de ciencias</b><span>Llevar el llavero y el cargador</span></li>
+                <li><b>Física</b><span>TP de circuitos para el lunes</span></li>
+                <li><b>Ideas</b><span>Carcasa en forma de gota</span></li>
+              </ul>
+              <div class="tel-grabando"><div class="tel-ondas"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><p>“Dentista el jueves a las 5”</p></div>
+              <div class="tel-aviso tel-aviso-1">Agendado: Dentista · jueves 17:00</div>
+              <div class="tel-aviso tel-aviso-2">Llavero al día · 1 evento</div>
+              <div class="tel-nav">
+                <span class="tel-tab activo">Notas</span>
+                <span class="tel-mic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+                <span class="tel-tab">Tareas</span>
+                <span class="tel-tab tel-sync"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M3 21v-5h5"/></svg>Llavero</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ventana ventana-mini app-llavero" aria-hidden="true">
+          <div class="ventana-barra"><span>llavero</span></div>
+          <div class="ventana-cuerpo"><canvas class="oled" id="oledApp"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 7 · ABRIR ============ -->
+  <section id="abrir" class="abrir" aria-labelledby="tituloAbrir">
+    <div class="abrir-centro">
+      <h2 id="tituloAbrir" class="titulo-cinetico abrir-titulo" data-partir>Abrí Kynus</h2>
+      <p class="abrir-sub">Gratis, desde el navegador del celular o de la compu.</p>
+      <a class="boton boton-rosa boton-enorme iman" href="/app">Abrir la app <span aria-hidden="true">→</span></a>
+      <p class="abrir-nota">Para mandar eventos al llavero usá Chrome en Android o en la compu.</p>
+    </div>
+    <footer class="pie">
+      <p>Hecho por <b>Ciro</b> · 5°C · Instituto Técnico El Obraje</p>
+      <p><i>Kynus</i> viene de <i>Kynosoura</i>, la estrella polar.</p>
+    </footer>
+  </section>
+</main>
+
+<!-- Marco de cuadritos rosas (como los banners) -->
+<div class="marco" aria-hidden="true"></div>
+
+<!-- Barra de tareas estilo Windows 98 -->
+<nav class="barra" aria-label="Secciones">
+  <button class="boton-inicio" id="botonInicio" type="button" aria-expanded="false" aria-controls="menuInicio">
+    <svg aria-hidden="true"><use href="#estrella"/></svg><span>Inicio</span>
+  </button>
+  <div class="barra-ventanas">
+    <a href="#llavero" data-sec="llavero">llavero.exe</a>
+    <a href="#como" data-sec="como">como.exe</a>
+    <a href="#ojos" data-sec="ojos">mi_dia.exe</a>
+    <a href="#nombre" data-sec="nombre">polar.txt</a>
+    <a href="#adentro" data-sec="adentro">adentro.exe</a>
+    <a href="#app" data-sec="app">app.exe</a>
+  </div>
+  <div class="bandeja">
+    <span class="bandeja-ojos" aria-hidden="true"><i></i><i></i></span>
+    <time id="reloj">--:--</time>
+  </div>
+</nav>
+<div class="menu-inicio" id="menuInicio" hidden>
+  <div class="menu-costado" aria-hidden="true"><span>Kynus<b>98</b></span></div>
+  <ul>
+    <li><a href="#inicio"><i style="--c: var(--rosa)"></i>Inicio</a></li>
+    <li><a href="#llavero"><i style="--c: var(--lila)"></i>El llavero</a></li>
+    <li><a href="#como"><i style="--c: var(--manteca)"></i>Cómo funciona</a></li>
+    <li><a href="#ojos"><i style="--c: var(--menta)"></i>Los ojos</a></li>
+    <li><a href="#nombre"><i style="--c: var(--celeste)"></i>La estrella polar</a></li>
+    <li><a href="#adentro"><i style="--c: var(--durazno)"></i>Lo de adentro</a></li>
+    <li><a href="#app"><i style="--c: var(--rosa-claro)"></i>La app</a></li>
+    <li class="separador" role="separator"></li>
+    <li><a href="/app" class="menu-app"><i style="--c: var(--tinta)"></i>Abrir la app →</a></li>
+  </ul>
+</div>
+
+<!-- Cursor con forma de estrella -->
+<div class="cursor" aria-hidden="true"><svg><use href="#estrella"/></svg></div>
+
+<!-- Intro: la pantallita del llavero se prende -->
+<div class="arranque" id="arranque">
+  <div class="arranque-pantalla" aria-hidden="true"><canvas id="arranqueLienzo"></canvas></div>
+  <p class="arranque-pie etiqueta-pixel">KYNUS · prendiendo…</p>
+  <button class="arranque-saltear etiqueta-pixel" id="saltearIntro" type="button">saltear ▸</button>
+</div>
+</body>
+</html>

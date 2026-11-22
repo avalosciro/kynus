@@ -187,9 +187,57 @@ def manifest():
     return archivo('manifest.webmanifest', 'application/manifest+json')
 
 
+# ---------- Página de presentación ----------
+TIPOS_PRESENTACION = {'.css': 'text/css', '.js': 'application/javascript'}
+
+
 @app.route('/')
-def home():
+def presentacion():
+    return archivo(os.path.join('presentacion', 'index.html'), 'text/html')
+
+
+@app.route('/presentacion/<nombre>')
+def archivo_presentacion(nombre):
+    ext = os.path.splitext(nombre)[1].lower()
+    ruta = os.path.join(BASE, 'presentacion', nombre)
+    if ext not in TIPOS_PRESENTACION or os.path.basename(nombre) != nombre or not os.path.isfile(ruta):
+        return "No encontrado", 404
+    return archivo(os.path.join('presentacion', nombre), TIPOS_PRESENTACION[ext])
+
+
+@app.route('/estado')
+def estado():
     return "Backend Kynus funcionando"
+
+
+# ---------- Para que Google encuentre la página ----------
+# La dirección se arma con la del pedido, así funciona igual si cambia el dominio de Render.
+@app.route('/robots.txt')
+def robots():
+    base = request.host_url.rstrip('/').replace('http://', 'https://')
+    texto = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /audio\n"
+        "Disallow: /transcribir\n"
+        "Disallow: /eventos\n"
+        f"Sitemap: {base}/sitemap.xml\n"
+    )
+    return app.response_class(texto, mimetype='text/plain')
+
+
+@app.route('/sitemap.xml')
+def sitemap():
+    base = request.host_url.rstrip('/').replace('http://', 'https://')
+    hoy = datetime.date.today().isoformat()
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f'  <url><loc>{base}/</loc><lastmod>{hoy}</lastmod><priority>1.0</priority></url>\n'
+        f'  <url><loc>{base}/app</loc><lastmod>{hoy}</lastmod><priority>0.6</priority></url>\n'
+        '</urlset>\n'
+    )
+    return app.response_class(xml, mimetype='application/xml')
 
 
 if __name__ == '__main__':
