@@ -1,0 +1,40 @@
+# Netlify sirve TODO el sitio desde un solo dominio:
+#   /            → presentación
+#   /app         → la aplicación
+#   /audio, /transcribir, /eventos → el servidor (por ahora en Render; se reenvían sin que cambie la dirección)
+#
+# El mismo repositorio sigue funcionando en Render sin tocar nada.
+
+[build]
+  # Se arma una carpeta "dist" sólo con lo que es público (sin app.py, zips, claves, etc.)
+  command = "mkdir -p dist && cp -r presentacion iconos dist/ && cp styles.css movil.css app.js manifest.webmanifest dist/ && cp index.html dist/app.html && cp iconos/favicon-32.png dist/favicon.ico"
+  publish = "dist"
+
+[[redirects]]
+  from = "/"
+  to = "/presentacion/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/app"
+  to = "/app.html"
+  status = 200
+
+# --- Servidor (Render). Para migrar el servidor a Netlify, estas tres reglas se reemplazan por funciones. ---
+[[redirects]]
+  from = "/audio"
+  to = "https://llavero-remil-nashe.onrender.com/audio"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/transcribir"
+  to = "https://llavero-remil-nashe.onrender.com/transcribir"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/eventos"
+  to = "https://llavero-remil-nashe.onrender.com/eventos"
+  status = 200
+  force = true
