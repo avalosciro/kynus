@@ -104,7 +104,9 @@ svg circle[r="1.6"]{ fill:currentColor; }
   padding:calc(14px + var(--sup)) 14px 14px;
   gap:14px;
 }
-body.panel-oculto .app{ grid-template-columns:0 1fr; gap:0; }
+/* Sin panel queda una sola columna: si quedaran dos (0 + 1fr), el contenido
+   caería en la de ancho 0 y se vería aplastado en una tira con scroll */
+body.panel-oculto .app{ grid-template-columns:minmax(0,1fr); gap:0; }
 body.panel-oculto .sidebar{ display:none; }
 body.panel-oculto .principal{ padding-left:64px; }
 
