@@ -164,6 +164,29 @@ def js():
     return archivo('app.js', 'application/javascript')
 
 
+# Logo: pestaña del navegador, acceso directo del celular y manifest (Android)
+TIPOS_ICONO = {'.svg': 'image/svg+xml', '.png': 'image/png'}
+
+
+@app.route('/iconos/<nombre>')
+def icono(nombre):
+    ext = os.path.splitext(nombre)[1].lower()
+    ruta = os.path.join(BASE, 'iconos', nombre)
+    if ext not in TIPOS_ICONO or os.path.basename(nombre) != nombre or not os.path.isfile(ruta):
+        return "No encontrado", 404
+    return archivo(os.path.join('iconos', nombre), TIPOS_ICONO[ext])
+
+
+@app.route('/favicon.ico')
+def favicon():
+    return archivo(os.path.join('iconos', 'favicon-32.png'), 'image/png')
+
+
+@app.route('/manifest.webmanifest')
+def manifest():
+    return archivo('manifest.webmanifest', 'application/manifest+json')
+
+
 @app.route('/')
 def home():
     return "Backend Kynus funcionando"
