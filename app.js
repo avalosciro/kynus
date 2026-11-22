@@ -7,7 +7,7 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 8;
+const VERSION = 9;
 const esMovil = () => document.documentElement.classList.contains("movil");
 
 const $ = id => document.getElementById(id);
@@ -247,7 +247,8 @@ function abrir(id){
   $("edTitulo").placeholder = esNota ? "Sin título" : "Nombre de la lista";
   $("edCuerpo").hidden = !esNota;
   $("edTareas").hidden = esNota;
-  document.querySelectorAll("#toolbar [data-cmd], #toolbar [data-block], #toolbar .sep:first-of-type")
+  // En las listas sólo quedan foto, audio y dictado: sin formato ni separadores
+  document.querySelectorAll("#toolbar [data-cmd], #toolbar [data-block], #toolbar .sep")
     .forEach(b => b.hidden = !esNota);
   if (esNota) $("edCuerpo").innerHTML = d.cuerpo;
   else pintarItems();

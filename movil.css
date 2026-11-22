@@ -2,10 +2,13 @@
    KYNUS — diseño para celular (Android / iPhone)
    Se activa con la clase html.movil, que pone el script del <head>
    según el dispositivo. No depende solo del ancho de pantalla.
+   Misma estética que la compu pero más liviana: sin marco de cuadritos,
+   sombras más chicas y una sola ventana a la vez.
    ============================================================ */
 
 html.movil{
-  --nav-alto:78px;
+  --nav-alto:76px;
+  --sombra-ventana:6px 6px 0 0 var(--lila), 6px 6px 0 3px var(--tinta);
   -webkit-text-size-adjust:100%;
   text-size-adjust:100%;
 }
@@ -19,59 +22,58 @@ html.movil .btn-abrir-panel{ display:none !important; }
 /* ---------- Una sola columna: lista ↔ editor ---------- */
 html.movil .app{
   grid-template-columns:1fr !important;
-  padding:calc(8px + var(--sup)) 8px 0;
+  padding:calc(12px + var(--sup)) 12px 0;
   gap:0 !important;
 }
 html.movil .sidebar{
   display:flex !important;
-  border-radius:22px 22px 0 0;
   border-bottom:none;
-  padding:16px 14px calc(var(--nav-alto) + 28px + var(--inf));
+  box-shadow:none;
+  padding:0 12px calc(var(--nav-alto) + 30px + var(--inf));
   gap:12px;
 }
-html.movil .principal{ display:none; padding:0 16px calc(var(--nav-alto) + 36px + var(--inf)) !important; }
+html.movil .side-head{ margin:0 -12px; padding:9px 10px 9px 12px; }
+html.movil .principal{ display:none; padding:20px 4px calc(var(--nav-alto) + 36px + var(--inf)) 0 !important; }
 html.movil body.editando .sidebar{ display:none !important; }
 html.movil body.editando .principal{ display:block; }
 
 /* ---------- Panel ---------- */
-html.movil .marca{ font-size:11px; }
-html.movil .side-head h1{ font-size:24px; line-height:1.15; }
-html.movil .saludo{ font-size:16px; margin-top:-2px; }
-html.movil .icono{ width:42px; height:42px; border-radius:12px; }
+html.movil .side-head h1{ font-size:24px; }
+html.movil .saludo{ font-size:17px; }
+html.movil .icono{ width:42px; height:42px; }
+html.movil .side-head .icono, html.movil .ed-head .icono{ width:40px; height:40px; }
 html.movil .icono.chico{ width:34px; height:34px; }
 
-html.movil .tabs{ padding:5px; }
-html.movil .tab{ padding:11px 8px; font-size:15px; gap:8px; }
-html.movil .buscar{ padding:0 14px; gap:10px; }
+html.movil .tab{ padding:10px 8px; font-size:15px; }
 html.movil .buscar input{ padding:12px 0; font-size:16px; }
-html.movil .crear{ padding:5px; }
-html.movil .btn-crear{ padding:12px 14px; font-size:15px; gap:10px; }
+html.movil .btn-crear{ padding:13px 14px; font-size:15px; }
+html.movil .crear .icono{ height:48px; }
 
-html.movil .seccion{ padding:8px 8px 10px; }
 html.movil .sec-head{ grid-template-columns:34px 1fr 34px; }
-html.movil .sec-head h2{ font-size:15px; }
-html.movil .vacia{ font-size:14px; padding:12px 0 6px; }
-html.movil .fila{ padding:11px 10px; gap:3px; border-radius:12px; }
+html.movil .vacia{ font-size:14px; }
+html.movil .fila{ padding:11px 10px; gap:3px; }
 html.movil .fila-titulo{ font-size:16px; }
 html.movil .fila-meta{ font-size:13px; }
 
 /* ---------- Editor ---------- */
-html.movil .ed-head{ top:0; padding:10px 0; gap:8px; }
+html.movil .editor{ box-shadow:8px -8px 0 0 var(--lila), 8px -8px 0 3px var(--tinta); margin-right:8px; }
+html.movil .ed-head{ padding:7px 8px; gap:8px; }
 html.movil .ed-fecha{ font-size:12px; }
-html.movil .ed-titulo{ font-size:28px; padding:12px 0 10px; }
+html.movil .ed-hoja{ padding:2px 16px 30px; min-height:calc(100svh - 160px); }
+html.movil .ed-titulo{ font-size:30px; padding:14px 0 10px; }
 html.movil .toolbar{
-  top:62px; padding:4px; margin-bottom:14px;
+  top:40px; padding:4px; margin-bottom:14px;
   flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;
 }
 html.movil .toolbar::-webkit-scrollbar{ display:none; }
 html.movil .toolbar button{ min-width:40px; height:38px; font-size:16px; flex-shrink:0; }
 html.movil .ed-cuerpo{ font-size:17px; line-height:1.65; }
-html.movil .ed-cuerpo h2{ font-size:22px; }
+html.movil .ed-cuerpo h2{ font-size:23px; }
 
 /* ---------- Tareas ---------- */
 html.movil .item, html.movil .nuevo-item{ padding:13px 2px; gap:12px; }
-html.movil .check{ width:24px; height:24px; border-radius:7px; }
-html.movil .check svg{ width:15px; height:15px; }
+html.movil .check{ width:26px; height:26px; }
+html.movil .check svg{ width:16px; height:16px; }
 html.movil .item-txt, html.movil .nuevo-item input{ font-size:16px; }
 html.movil .item-borrar{ opacity:1; padding:6px; }
 
@@ -84,14 +86,14 @@ html.movil .transcripcion{ font-size:15px; }
 
 /* ---------- Barra inferior ---------- */
 html.movil .nav{
-  left:10px; right:10px; transform:none;
+  left:12px; right:12px; transform:none;
   justify-content:space-between;
-  bottom:calc(8px + var(--inf));
-  padding:6px;
+  bottom:calc(10px + var(--inf));
+  padding:5px;
 }
-html.movil .nav-btn{ flex:1; justify-content:center; flex-direction:column; gap:3px; padding:8px; font-size:12px; }
+html.movil .nav-btn{ flex:1; justify-content:center; flex-direction:column; gap:2px; padding:7px 4px; font-size:12px; }
 html.movil .nav-btn svg{ width:22px; height:22px; }
-html.movil .grabar{ width:58px; height:58px; }
+html.movil .grabar{ width:58px; height:58px; flex-shrink:0; }
 html.movil .grabar svg{ width:26px; height:26px; }
 html.movil .grabar .ico-stop{ width:20px; height:20px; }
 
@@ -102,18 +104,19 @@ html.movil .aviso{ font-size:15px; padding:12px 16px; }
 
 html.movil .bienvenida{
   left:12px; right:12px; width:auto;
-  bottom:calc(var(--nav-alto) + 22px + var(--inf));
-  padding:18px; gap:10px;
+  bottom:calc(var(--nav-alto) + 26px + var(--inf));
+  padding:0 16px 16px; gap:10px;
 }
-html.movil .bienvenida h3{ font-size:19px; }
+html.movil .bienvenida .marca{ margin:0 -16px 6px; }
+html.movil .bienvenida h3{ font-size:22px; }
 html.movil .bien-sub{ font-size:14px; }
 html.movil .bienvenida input[type=text]{ padding:12px 14px; font-size:16px; }
 html.movil .bien-check{ font-size:14px; }
 html.movil .bien-check input{ width:20px; height:20px; }
 html.movil .btn-sec{ padding:12px 16px; font-size:15px; }
-html.movil .btn-acento{ padding:13px 20px; font-size:16px; }
+html.movil .btn-acento{ padding:13px 22px; font-size:16px; }
 
 /* ---------- Modo lectura ---------- */
-html.movil body.zen .ed-titulo{ font-size:30px; }
+html.movil body.zen .ed-titulo{ font-size:32px; }
 html.movil body.zen .ed-cuerpo{ font-size:19px; }
 html.movil body.zen .principal{ padding-bottom:40px !important; }

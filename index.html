@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1A1715">
+<meta name="theme-color" content="#7FB9E6">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Kynus</title>
 <meta name="apple-mobile-web-app-title" content="Kynus">
-<link rel="icon" href="/iconos/favicon.svg?v=8" type="image/svg+xml">
-<link rel="icon" href="/iconos/favicon-32.png?v=8" sizes="32x32" type="image/png">
-<link rel="apple-touch-icon" href="/iconos/icono-180.png?v=8">
-<link rel="manifest" href="/manifest.webmanifest?v=8">
+<link rel="icon" href="/iconos/favicon.svg?v=9" type="image/svg+xml">
+<link rel="icon" href="/iconos/favicon-32.png?v=9" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/iconos/icono-180.png?v=9">
+<link rel="manifest" href="/manifest.webmanifest?v=9">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:ital,wght@0,400..800;1,400..800&family=Press+Start+2P&display=swap" rel="stylesheet">
 <script>
   // Decide el diseño según el DISPOSITIVO, no solo el ancho: celulares y tablets chicas
   // usan movil.css aunque el navegador esté en "Sitio de escritorio".
@@ -39,10 +39,34 @@
     window.addEventListener("orientationchange", aplicar);
   })();
 </script>
-<link rel="stylesheet" href="/styles.css?v=8">
-<link rel="stylesheet" href="/movil.css?v=8">
+<link rel="stylesheet" href="/styles.css?v=9">
+<link rel="stylesheet" href="/movil.css?v=9">
 </head>
 <body>
+
+<!-- La estrella del logo (la misma de la presentación) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="estrella" viewBox="-37 -29 74 62">
+      <g style="fill: currentColor">
+        <polygon points="0,0 10.8,-3.5 36,0 10.8,3.5"/>
+        <polygon points="0,0 -10.8,3.5 -36,0 -10.8,-3.5"/>
+        <polygon points="0,0 -4.5,-8.4 0,-28 4.5,-8.4"/>
+        <polygon points="0,0 4.5,9.6 0,32 -4.5,9.6"/>
+        <polygon points="0,0 1.2,-5.16 10.61,-10.61 5.16,-1.2"/>
+        <polygon points="0,0 -4.74,-0.78 -9.19,-9.19 -0.78,-4.74"/>
+        <polygon points="0,0 4.74,0.78 9.19,9.19 0.78,4.74"/>
+        <polygon points="0,0 -0.99,4.95 -9.9,9.9 -4.95,0.99"/>
+      </g>
+      <g style="stroke: var(--tallado, transparent); stroke-width: 1.3; stroke-linecap: round">
+        <line x1="0" y1="0" x2="19.8" y2="0"/><line x1="0" y1="0" x2="-19.8" y2="0"/>
+        <line x1="0" y1="0" x2="0" y2="-15.4"/><line x1="0" y1="0" x2="0" y2="17.6"/>
+        <line x1="0" y1="0" x2="6.36" y2="-6.36"/><line x1="0" y1="0" x2="-5.52" y2="-5.52"/>
+        <line x1="0" y1="0" x2="5.52" y2="5.52"/><line x1="0" y1="0" x2="-5.94" y2="5.94"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
 
 <div class="app">
 
@@ -124,9 +148,7 @@
     <section class="vacio" id="vistaVacia">
       <h1 class="titulo-pagina" id="tituloPagina">Notas</h1>
       <div class="vacio-centro">
-        <div class="vacio-icono">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
-        </div>
+        <div class="vacio-icono" aria-hidden="true"><svg><use href="#estrella"/></svg></div>
         <h2 id="vacioTitulo">Todavía no hay notas</h2>
         <p id="vacioSub">Escribí ahora. Organizá después.</p>
         <button class="btn-acento" id="btnCrearVacio">
@@ -241,6 +263,6 @@
 <input type="file" id="inpFoto" accept="image/*" hidden>
 <input type="file" id="inpImportar" accept="application/json" hidden>
 
-<script src="/app.js?v=8"></script>
+<script src="/app.js?v=9"></script>
 </body>
 </html>
