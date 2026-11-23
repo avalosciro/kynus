@@ -73,8 +73,28 @@ void mostrarEventoDeHoy() {
     display.setTextWrap(true);
 
     if (totalHoy == 0) {
-        display.setCursor(10, 28);
-        display.println("Sin eventos hoy");
+        // Nada pendiente: si hubo eventos hoy que ya pasaron, decirlo (si no, parece que no llegaron)
+        const int pasaron = agenda::cuantosHoy();
+        frases::iconito(display);
+        display.setTextWrap(false);
+        display.setCursor(14, 2);
+        display.print("HOY");
+        for (int x = 0; x < 128; x += 2) display.drawPixel(x, 11, SSD1306_WHITE);
+        char linea1[24], linea2[24];
+        if (pasaron > 0) {
+            frases::aCp437("¡Listo por hoy!", linea1, sizeof linea1);
+            if (pasaron == 1) frases::aCp437("Ya pasó el de hoy", linea2, sizeof linea2);
+            else { char tmp[32]; snprintf(tmp, sizeof tmp, "Ya pasaron los %d", pasaron); frases::aCp437(tmp, linea2, sizeof linea2); }
+        } else {
+            frases::aCp437("Sin eventos hoy", linea1, sizeof linea1);
+            linea2[0] = 0;
+        }
+        display.setCursor((128 - ((int)strlen(linea1) * 6 - 1)) / 2, linea2[0] ? 26 : 32);
+        display.print(linea1);
+        if (linea2[0]) {
+            display.setCursor((128 - ((int)strlen(linea2) * 6 - 1)) / 2, 40);
+            display.print(linea2);
+        }
         display.display();
         return;
     }
@@ -212,7 +232,7 @@ void loop() {
         String mensaje = mensajeCompleto;
         mensajeCompleto = "";
         agenda::cargar(mensaje);
-        Serial.printf("Agenda: %d eventos (%s)\n", agenda::total, agenda::hayReloj ? "con fecha" : "formato viejo");
+        agenda::contarPorSerie();
         empezarHoy(true);   // apenas llegan: hoy y después los próximos días
     }
 

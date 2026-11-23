@@ -93,7 +93,9 @@ App web (celular, Chrome Android)
 - El código actual es la versión **sin botón** (BLE "Llavero C3"). Al prenderse, la frase sale 1 de cada 5 veces
   (`CHANCE_FRASE`). Al sincronizar: eventos de hoy y después los próximos días. Al terminar un mood, 35% de
   chance (`PROXIMOS_CHANCE`, como mucho cada 3 min) de mostrar los próximos días (hasta 3, uno por pantalla).
-  Cada 1 min repasa lo que queda de hoy (los eventos que ya terminaron no se muestran).
+  Cada 1 min repasa lo que queda de hoy (los eventos que ya terminaron no se muestran). Si todos los de hoy
+  ya pasaron dice "¡Listo por hoy! / Ya pasaron los N" (no "Sin eventos hoy"); la app cuenta igual
+  (pendientes / ya pasaron). Al recibir la agenda, el Monitor Serie lista cada evento y marca "(ya pasó)".
 - Hardware: LiPo 502030 + cargador TP4056 (USB-C) + interruptor. No usar pila de 9 V.
 
 ### Página de presentación (`presentacion/`, se sirve en `/`)

@@ -10,7 +10,7 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 15;
+const VERSION = 16;
 const LIMITE = 35000;                    // caracteres por nota
 const esMovil = () => document.documentElement.classList.contains("movil");
 const sinMovimiento = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1320,10 +1320,19 @@ async function eventosProximos(){
 function mensajeParaLlavero(evs){
   const ahora = new Date(), hoy = fechaLocal(ahora);
   const limpio = t => (t || "").replace(/[|\s]+/g, " ").trim().slice(0, 32) || "Sin título";
-  const deHoy = evs.filter(e => e.fecha === hoy).slice(0, 10);
+  // Igual que el llavero: un evento de hoy "ya pasó" cuando terminó (dura 1 hora); los de todo el día no pasan
+  const minutoAhora = ahora.getHours() * 60 + ahora.getMinutes();
+  const yaPaso = e => e.hora !== "--:--" && Number(e.hora.slice(0, 2)) * 60 + Number(e.hora.slice(3, 5)) + 60 <= minutoAhora;
+  const todosHoy = evs.filter(e => e.fecha === hoy);
+  const pendientes = todosHoy.filter(e => !yaPaso(e));
+  const pasados = todosHoy.filter(yaPaso);
+  // Al llavero entran 10 de hoy: primero los que faltan; los que pasaron sólo para que sepa cuántos fueron
+  const deHoy = [...pendientes.slice(0, 10), ...pasados.slice(0, Math.max(0, 10 - pendientes.length))]
+    .sort((a, b) => a.hora.localeCompare(b.hora));
   const despues = evs.filter(e => e.fecha > hoy).slice(0, 20 - deHoy.length);
   const items = [...deHoy, ...despues].map(e => `${e.fecha} ${e.hora} ${limpio(e.titulo)}|`).join("");
-  return { texto:`K2|${hoy} ${dos(ahora.getHours())}:${dos(ahora.getMinutes())}|${items}`, hoy:deHoy.length, despues:despues.length };
+  return { texto:`K2|${hoy} ${dos(ahora.getHours())}:${dos(ahora.getMinutes())}|${items}`,
+           hoy:pendientes.length, pasaron:pasados.length, despues:despues.length };
 }
 
 async function sincronizar(){
@@ -1425,7 +1434,11 @@ async function mandarAlLlavero(){
     ultimoEnvioLlavero = Date.now();
     llaveroPendiente = false;
 
-    const partes = [mensaje.hoy ? `${mensaje.hoy} hoy` : "nada hoy", mensaje.despues ? `${mensaje.despues} en la semana` : ""].filter(Boolean);
+    const partes = [
+      mensaje.hoy ? `${mensaje.hoy} hoy` : (mensaje.pasaron ? "listo por hoy" : "nada hoy"),
+      mensaje.pasaron ? `${mensaje.pasaron} ya ${mensaje.pasaron === 1 ? "pasó" : "pasaron"}` : "",
+      mensaje.despues ? `${mensaje.despues} en la semana` : "",
+    ].filter(Boolean);
     avisar(`Llavero al día · ${partes.join(" · ")}${nuevo ? ". Desde ahora los eventos nuevos se le mandan solos ✦" : ""}`, "ok", nuevo ? 5500 : 2800);
     btn.classList.add("listo");
     chispasEn(btn, 10);

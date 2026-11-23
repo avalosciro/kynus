@@ -146,6 +146,32 @@ inline int deHoy(int *idx){
   return n;
 }
 
+// Cuántos eventos de hoy llegaron en total (incluidos los que ya terminaron)
+inline int cuantosHoy(){
+  int n = 0;
+  const int32_t h = hoy();
+  for (int i = 0; i < total; i++) if (lista[i].dia == h) n++;
+  return n;
+}
+
+// Para el Monitor Serie: qué llegó y qué se va a mostrar
+inline void contarPorSerie(){
+  Serial.printf("Agenda: %d eventos (%s)\n", total, hayReloj ? "con fecha" : "formato viejo, sin fecha");
+  if (hayReloj){
+    int y, m, d;
+    civilDesdeDias(hoy(), y, m, d);
+    Serial.printf("  Ahora en el llavero: %04d-%02d-%02d %02d:%02d\n", y, m, d, minutoDelDia() / 60, minutoDelDia() % 60);
+  }
+  for (int i = 0; i < total; i++){
+    const Evento &e = lista[i];
+    int y = 0, m = 0, d = 0;
+    if (e.dia >= 0) civilDesdeDias(e.dia, y, m, d);
+    const bool paso = hayReloj && e.dia == hoy() && e.minuto >= 0 && e.minuto + 60 <= minutoDelDia();
+    if (e.minuto >= 0) Serial.printf("  %04d-%02d-%02d %02d:%02d  %s%s\n", y, m, d, e.minuto / 60, e.minuto % 60, e.titulo, paso ? "  (ya pasó)" : "");
+    else               Serial.printf("  %04d-%02d-%02d todo el día  %s\n", y, m, d, e.titulo);
+  }
+}
+
 // Días de la semana que viene (después de hoy) que tienen algo, en orden
 inline int diasProximos(int32_t *dias, int max){
   if (!hayReloj) return 0;
