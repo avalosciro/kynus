@@ -841,3 +841,7 @@ body.buscando .aviso{ bottom:calc(var(--nav-alto) + 104px + var(--inf)); }
   content:""; position:absolute; top:4px; left:28px; width:9px; height:9px; border-radius:50%;
   background:var(--menta); border:1.5px solid var(--tinta);
 }
+
+/* ---------- v21: el título es un textarea (en el celular baja de renglón en vez de cortarse) ---------- */
+.ed-titulo{ display:block; resize:none; overflow:hidden; field-sizing:content; min-height:1.2em; color:inherit; outline:none; }
+.side-estrella{ display:none; }   /* la estrellita junto a los ojitos sólo se ve en el celular */

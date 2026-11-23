@@ -39,8 +39,8 @@
     window.addEventListener("orientationchange", aplicar);
   })();
 </script>
-<link rel="stylesheet" href="/styles.css?v=14">
-<link rel="stylesheet" href="/movil.css?v=14">
+<link rel="stylesheet" href="/styles.css?v=21">
+<link rel="stylesheet" href="/movil.css?v=21">
 </head>
 <body>
 
@@ -78,6 +78,7 @@
     <header class="side-head">
       <div class="side-titulo">
         <span class="ojitos" aria-hidden="true"><i></i><i></i></span>
+        <svg class="side-estrella" aria-hidden="true"><use href="#estrella"/></svg>
         <div>
           <p class="marca">KYNUS</p>
           <h1 id="sideTitulo">Notas</h1>
@@ -186,7 +187,7 @@
 
       <div class="ed-hoja" id="edHoja">
         <div class="ed-portada" id="edPortada" hidden></div>
-        <input type="text" id="edTitulo" class="ed-titulo" placeholder="Sin título" autocomplete="off">
+        <textarea id="edTitulo" class="ed-titulo" placeholder="Sin título" autocomplete="off" rows="1" spellcheck="true"></textarea>
 
         <div class="ed-meta">
           <button class="estado" id="edEstado" data-estado="borrador" title="Cambiar estado"><i></i><span>Borrador</span></button>
@@ -348,6 +349,6 @@
 <input type="file" id="inpPortada" accept="image/*" hidden>
 <input type="file" id="inpImportar" accept="application/json" hidden>
 
-<script src="/app.js?v=20"></script>
+<script src="/app.js?v=21"></script>
 </body>
 </html>

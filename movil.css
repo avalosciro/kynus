@@ -159,3 +159,111 @@ html.movil body.zen .principal{ padding-bottom:40px !important; }
 
 /* Llavero vinculado: en el celular el puntito va en la esquina del botón */
 html.movil #btnSync.vinculado::after{ left:auto; right:7px; top:5px; }
+
+/* ============================================================
+   VERSIÓN 21 — el celular respira
+   El panel deja de ser una ventana blanca de borde a borde: arriba está la cara
+   de Kynus (los ojitos grandes, en el medio, con su estrellita) sobre el cielo,
+   y debajo las notas como tarjetitas sueltas. Menos bordes negros encimados,
+   los mismos detalles: cielo, ventanitas, pasteles, ojitos y estrellas.
+   ============================================================ */
+html.movil .app{ padding:0; }
+
+/* ---------- El panel, sobre el cielo ---------- */
+html.movil .sidebar{
+  display:grid !important; grid-template-columns:minmax(0, 1fr) auto; align-content:start;
+  gap:14px 10px;
+  background:none; border:none; box-shadow:none;
+  height:100%; overflow-y:auto;
+  padding:calc(8px + var(--sup)) 16px calc(var(--nav-alto) + 36px + var(--inf));
+}
+html.movil .sidebar > *{ grid-column:1 / -1; min-width:0; }
+html.movil .sidebar > .buscar{ grid-column:1; }
+html.movil .sidebar > .crear{ grid-column:2; }
+
+/* La cara de Kynus */
+html.movil .side-head{
+  position:relative; margin:0; padding:4px 0 0;
+  flex-direction:column; align-items:center; gap:0;
+  background:none; border:none;
+}
+html.movil .side-titulo{ position:relative; flex-direction:column; align-items:center; gap:14px; width:100%; }
+html.movil .side-titulo > div{ order:-1; display:flex; flex-direction:column; align-items:center; }
+html.movil .side-head h1{ position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }   /* las pestañas ya dicen dónde estás */
+html.movil .side-head .marca{ font-size:10px; }
+html.movil .side-head .ojitos.grande{
+  width:140px; height:80px; gap:16px; border-radius:18px;
+  box-shadow:6px 6px 0 0 var(--lila), 6px 6px 0 3px var(--tinta);
+}
+html.movil .side-head .ojitos.grande i{ width:40px; height:44px; border-radius:12px; }
+html.movil .side-estrella{
+  display:block; position:absolute; top:22px; left:calc(50% + 62px);
+  width:40px; height:auto; aspect-ratio:74 / 62;
+  color:#fff; --tallado:var(--rosa); filter:drop-shadow(0 0 7px rgba(244,154,214,.95));
+  animation:flotar 5s ease-in-out infinite;
+}
+html.movil .side-acciones{ position:absolute; top:calc(2px + var(--sup) * 0); right:0; }
+html.movil .side-head .icono{ width:40px; height:40px; border-radius:50%; corner-shape:round; box-shadow:3px 3px 0 var(--tinta); }
+html.movil .saludo{ text-align:center; font-size:18px; margin-top:-4px; }
+
+/* Pestañas como píldora */
+html.movil .tabs{ border-radius:999px; corner-shape:round; padding:4px; box-shadow:3px 3px 0 var(--tinta); background:var(--papel); }
+html.movil .tab{ border-radius:999px; corner-shape:round; padding:9px 8px; }
+html.movil .tab.activa{ box-shadow:none; }
+
+/* Buscar y crear en la misma fila */
+html.movil .buscar{ height:48px; padding:0 14px; border-radius:16px; box-shadow:3px 3px 0 var(--tinta); }
+html.movil .buscar input{ padding:0; }
+html.movil .crear{ gap:0; }
+html.movil .btn-crear{
+  flex:none; width:54px; height:48px; padding:0; justify-content:center;
+  border-radius:16px 0 0 16px; box-shadow:3px 3px 0 var(--tinta);
+}
+html.movil .btn-crear svg{ width:24px; height:24px; }
+html.movil .btn-crear span{ position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+html.movil .crear .icono{ width:34px; height:48px; border-left:none; border-radius:0 16px 16px 0; box-shadow:3px 3px 0 var(--tinta); }
+
+/* Secciones sin caja: el título chiquito y las notas como tarjetas */
+html.movil .secciones{ gap:20px; }
+html.movil .seccion{ background:none; border:none; padding:0; }
+html.movil .seccion[data-sec="fijadas"]:has(#vaciaFijadas:not([hidden])){ display:none; }
+html.movil .sec-head{ grid-template-columns:30px 1fr 30px; border-bottom:none; padding:0; }
+html.movil .sec-head h2{ text-align:left; font-size:9px; letter-spacing:.08em; }
+html.movil .sec-head .icono.chico{ width:30px; height:30px; }
+html.movil .lista{ gap:10px; margin-top:8px; }
+html.movil .fila{
+  background:var(--papel); border:2px solid var(--tinta); border-radius:16px;
+  box-shadow:3px 3px 0 var(--tinta); padding:12px 14px; gap:4px;
+}
+html.movil .fila:active{ translate:2px 2px; box-shadow:1px 1px 0 var(--tinta); }
+html.movil .seccion[data-sec="fijadas"] .fila{ background:var(--rosa-claro); }
+html.movil .vacia{
+  margin-top:8px; padding:20px 14px; border:2px dashed #B5ABCB; border-radius:16px;
+  background:rgba(255, 255, 255, .6); color:var(--texto-2); font-weight:600;
+}
+
+/* ---------- La nota abierta ---------- */
+html.movil .principal{ padding:calc(10px + var(--sup)) 16px calc(var(--nav-alto) + 34px + var(--inf)) 12px !important; }
+html.movil .editor{ margin:0; box-shadow:6px 6px 0 0 var(--lila), 6px 6px 0 3px var(--tinta); }
+html.movil .ed-head{ top:-10px; padding:6px 8px; }
+html.movil .ed-head .icono{ width:38px; height:38px; }
+html.movil .ed-hoja{ padding:2px 16px 28px; }
+html.movil .ed-titulo{ font-size:28px; line-height:1.08; padding:14px 0 8px; }
+html.movil .ed-meta{ gap:6px 10px; font-size:12px; margin-bottom:12px; }
+html.movil .ed-meta .ed-fecha{ flex-basis:100%; font-size:11.5px; }
+html.movil .toolbar{
+  top:46px; padding:3px 6px; margin-bottom:14px;
+  border-radius:999px; corner-shape:round; box-shadow:none; background:var(--papel-2);
+}
+html.movil .toolbar button{ min-width:36px; height:34px; }
+
+/* ---------- Barras de abajo, un poco más livianas ---------- */
+html.movil .nav{ box-shadow:4px 4px 0 var(--tinta); padding:4px; }
+html.movil .nav-btn{ padding:6px 4px; font-size:11.5px; }
+html.movil .barra-nota .grupo{ box-shadow:3px 3px 0 var(--tinta); }
+html.movil .barra-nota .grupo button{ width:36px; height:36px; }
+/* Lista vacía (y sin estar buscando): cómo empezar */
+html.movil .sidebar:has(#buscador:placeholder-shown) #vaciaTodas::after{
+  content:"Tocá el botón rosa de arriba para escribir, o el micrófono para agendar con la voz.";
+  display:block; margin-top:6px; font-size:13px; font-weight:500; color:var(--tenue);
+}

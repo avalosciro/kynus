@@ -33,8 +33,7 @@ App web (celular, Chrome Android)
 - Los archivos se sirven con ruta absoluta (`os.path.dirname(__file__)`), si no Render devuelve 0 bytes.
 - `requirements.txt`: flask, requests, gunicorn.
 - Render free se duerme a los 15 min: la primera petición tarda hasta ~1 min. La app lo despierta al abrirse y al
-  empezar a grabar (`despertarServidor`: un GET a `/audio`, que pasa por Netlify, despierta a Render y responde 405 sin
-  gastar cuota; la regla de Netlify para `/estado` no funcionó) y si Netlify devuelve 502/503/504 avisa
+  empezar a grabar (`despertarServidor`: pide `/estado` directo a Render) y si Netlify devuelve 502/503/504 avisa
   "Despertando el servidor…" y reintenta hasta 80 s (`pedirServidor`). Opcional: un monitor gratis (UptimeRobot)
   que pida `/estado` cada 10 min lo mantiene despierto.
 - Cuota de Groq (v17): `/audio` y `/transcribir` siguen abiertos pero con límites en memoria (`app.py`):
@@ -62,8 +61,12 @@ App web (celular, Chrome Android)
   en Sincronizar, un toque renueva el permiso y otro busca el llavero.
 - Nunca subir `credentials.json`, `token.pickle` ni claves (ya pasó una vez; están en `.gitignore`).
 
-### App web (`index.html`, `styles.css`, `movil.css`, `app.js`, `plantillas.js`, `tutorial.js`) — versión 13
+### App web (`index.html`, `styles.css`, `movil.css`, `app.js`, `plantillas.js`, `tutorial.js`) — versión 21
 - Estética Y2K pastel (cielo con nubes, ventanas Win98). `movil.css` sólo se aplica en celulares (`html.movil`).
+- Celular (v21): el panel no es una ventana a pantalla completa. Arriba la cara de Kynus sobre el cielo (los ojitos
+  del encabezado con clase `grande` + `.side-estrella`), saludo centrado, pestañas en píldora, buscar y crear
+  (sólo ícono) en la misma fila, secciones sin caja y notas como tarjetitas; "Fijadas" se oculta si está vacía.
+  El título de la nota es un `<textarea>` de un renglón lógico (`field-sizing:content`): baja de renglón en vez de cortarse.
 - Panel con notas y tareas; abajo: Notas · grabar (→ Calendar) · Tareas · Llavero. Al editar, esa barra se cambia
   por la de la nota: deshacer/rehacer · QR · buscar · grabar · menú "···" · mostrar/ocultar herramientas.
 - Menú "···": foto, archivo (PDF/TXT/DOCX), presentación, exportar (PDF/Word/HTML/MD/TXT), fondo, fuente,

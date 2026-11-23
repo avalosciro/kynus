@@ -13,7 +13,7 @@ const SERVIDOR = "https://llavero-remil-nashe.onrender.com";
 const BACKEND = /onrender\.com$|^localhost$|^127\.0\.0\.1$/.test(location.hostname) ? location.origin : SERVIDOR;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 20;
+const VERSION = 21;
 const LIMITE = 35000;                    // caracteres por nota
 const esMovil = () => document.documentElement.classList.contains("movil");
 const sinMovimiento = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -194,6 +194,8 @@ const chispasEn = (el, n) => { if (!el) return; const r = el.getBoundingClientRe
 
 // Los ojitos miran hacia el puntero; en el celular miran para cualquier lado de vez en cuando
 const ojitos = [...document.querySelectorAll(".ojitos")];
+// En el celular, los ojitos del panel son la cara de Kynus: grandes y en el medio
+if (esMovil()) document.querySelector(".side-head .ojitos")?.classList.add("grande");
 let pX = innerWidth / 2, pY = innerHeight / 2, rafOjos = 0, ultimoPuntero = 0;
 function moverOjos(){
   rafOjos = 0;
@@ -433,7 +435,12 @@ function pintarCabecera(){
   $("edEstado").querySelector("span").textContent = est.txt;
 }
 
-$("edTitulo").oninput = () => { const d = docAbierto(); if (d){ d.titulo = $("edTitulo").value; tocar(d); } };
+$("edTitulo").oninput = () => {
+  const campo = $("edTitulo");
+  // El título es de un solo renglón (aunque en el celular se vea en varios): sin saltos de línea
+  if (/\n/.test(campo.value)) campo.value = campo.value.replace(/\s*\n\s*/g, " ");
+  const d = docAbierto(); if (d){ d.titulo = campo.value; tocar(d); }
+};
 $("edTitulo").onkeydown = e => {
   if (e.key !== "Enter") return;
   e.preventDefault();
@@ -1051,9 +1058,8 @@ let ultimoDespertador = 0;
 function despertarServidor(){
   if (Date.now() - ultimoDespertador < 5 * 60 * 1000) return;
   ultimoDespertador = Date.now();
-  // Un GET a /audio va por el mismo camino que las grabaciones y despierta al
-  // servidor; responde "método no permitido" sin tocar Groq ni contar para los límites.
-  fetch(`${BACKEND}/audio`, { cache:"no-store", mode:"no-cors" }).catch(() => {});
+  // La app le habla directo a Render: con pedirle /estado ya se despierta
+  fetch(`${BACKEND}/estado`, { cache:"no-store", mode:"no-cors" }).catch(() => {});
 }
 
 async function pedirServidor(ruta, fd){
