@@ -504,55 +504,81 @@ html.sin3d .llavero-respaldo{ display: block; position: absolute; right: calc(va
 .app-escena{ position: relative; height: 100%; display: grid; place-items: center; }
 .telefono-perspectiva{ perspective: 1500px; }
 .telefono{
-  position: relative; width: clamp(230px, 21vw, 310px); aspect-ratio: 9 / 19;
+  /* el ancho también depende del alto de la pantalla: así entra entero en pantallas bajitas */
+  position: relative; width: min(clamp(230px, 21vw, 310px), calc((100svh - 160px) / 2.11)); aspect-ratio: 9 / 19;
   padding: 10px; border-radius: 46px; background: #121214; border: var(--borde);
   box-shadow: 18px 18px 0 -3px var(--lila), 18px 18px 0 0 var(--tinta);
   will-change: transform;
+  container-type: inline-size;
 }
+/* Pantalla del teléfono: igual a la app de notas.
+   Todo en "em" y la letra base es un % del ancho del teléfono: se achica sola en el celular. */
 .tel-pantalla{
   position: relative; height: 100%; overflow: hidden; border-radius: 36px;
-  background: #1A1715; color: #EDE6DF; padding: 14px 14px 0; display: flex; flex-direction: column; gap: 10px;
-  font-size: 13px;
+  font-size: 13px; font-size: 4.6cqw; color: var(--tinta);
+  padding: .9em .75em 0; display: flex; flex-direction: column; gap: .6em;
+  background:
+    radial-gradient(closest-side, rgba(255,255,255,.95), rgba(255,255,255,0)) -30% 4% / 90% 12% no-repeat,
+    radial-gradient(closest-side, rgba(255,255,255,.85), rgba(255,255,255,0)) 130% 76% / 90% 12% no-repeat,
+    linear-gradient(180deg, var(--cielo-1), var(--cielo-2) 55%, var(--cielo-3));
 }
-.tel-estado{ display: flex; justify-content: space-between; font-weight: 700; font-size: 12px; padding: 0 8px; }
-.tel-iconos{ display: flex; gap: 3px; align-items: center; }
-.tel-iconos i{ width: 14px; height: 8px; border-radius: 2px; background: #EDE6DF; }
-.tel-iconos i:first-child{ width: 4px; } .tel-iconos i:nth-child(2){ width: 8px; }
-.tel-cabeza{ display: flex; flex-direction: column; padding: 4px 4px 0; }
-.tel-cabeza small{ font-family: "Archivo Black", sans-serif; letter-spacing: .12em; font-size: 9px; color: #A39A92; }
-.tel-cabeza b{ font-size: 22px; letter-spacing: -.02em; }
-.tel-buscar{ border: 1px solid #3A332E; border-radius: 12px; padding: 8px 12px; color: #7D746C; }
-.tel-notas{ display: flex; flex-direction: column; gap: 6px; }
-.tel-notas li{ display: flex; flex-direction: column; padding: 9px 11px; border-radius: 12px; background: #221E1B; border: 1px solid #2F2925; }
-.tel-notas b{ font-size: 13px; }
-.tel-notas span{ font-size: 11.5px; color: #A39A92; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tel-estado{ display: flex; justify-content: space-between; font-weight: 800; font-size: .9em; padding: 0 .7em; }
+.tel-iconos{ display: flex; gap: .25em; align-items: center; }
+.tel-iconos i{ width: 1.1em; height: .62em; border-radius: 2px; background: var(--tinta); }
+.tel-iconos i:first-child{ width: .32em; } .tel-iconos i:nth-child(2){ width: .62em; }
+.tel-ventana{ background: #fff; border: 2px solid var(--tinta); display: flex; flex-direction: column; min-height: 0; flex: 1; margin-bottom: 5.6em; }
+.tel-cabeza{
+  display: flex; align-items: center; justify-content: space-between; gap: .5em;
+  padding: .45em .55em .45em .7em; background: var(--rosa-claro); border-bottom: 2px solid var(--tinta);
+}
+.tel-cabeza > div{ display: flex; flex-direction: column; }
+.tel-cabeza small{ font-family: var(--pixel); font-size: .5em; letter-spacing: .04em; }
+.tel-cabeza small::before{ content: "✦ "; }
+.tel-cabeza b{ font-family: var(--titulo); font-style: italic; font-weight: 400; font-size: 1.45em; line-height: 1.05; }
+.tel-boton{ display: grid; place-items: center; width: 1.9em; height: 1.9em; background: #fff; border: 2px solid var(--tinta); box-shadow: 2px 2px 0 var(--tinta); font-weight: 800; line-height: 1; }
+.tel-cuerpo{ display: flex; flex-direction: column; gap: .55em; padding: .55em .6em .6em; min-height: 0; overflow: hidden; }
+.tel-saludo{ font-style: italic; font-weight: 700; font-size: .9em; color: var(--texto-2); }
+.tel-tabs{ display: grid; grid-template-columns: 1fr 1fr; gap: .25em; padding: .22em; border: 2px solid var(--tinta); background: #FBF7FF; font-weight: 800; font-size: .85em; text-align: center; }
+.tel-tabs span{ padding: .35em; border: 2px solid transparent; }
+.tel-tabs .activo{ background: var(--rosa); border-color: var(--tinta); box-shadow: 2px 2px 0 var(--tinta); }
+.tel-buscar{ border: 2px solid var(--tinta); box-shadow: 2px 2px 0 var(--tinta); padding: .45em .7em; color: #9A94AE; font-size: .9em; }
+.tel-crear{ background: var(--rosa); border: 2px solid var(--tinta); box-shadow: 2px 2px 0 var(--tinta); padding: .5em .7em; font-weight: 800; font-size: .9em; }
+.tel-seccion{ border: 2px solid var(--tinta); padding: .35em .4em .4em; min-height: 0; }
+.tel-sec-titulo{ text-align: center; font-family: var(--pixel); font-size: .48em; letter-spacing: .05em; padding-bottom: .5em; margin-bottom: .3em; border-bottom: 2px dashed #D6CFE6; }
+.tel-notas{ display: flex; flex-direction: column; gap: .2em; }
+.tel-notas li{ display: flex; flex-direction: column; padding: .4em .5em; border: 2px solid transparent; }
+.tel-notas li:first-child{ background: var(--rosa); border-color: var(--tinta); box-shadow: 2px 2px 0 var(--tinta); }
+.tel-notas b{ font-size: .95em; font-weight: 800; }
+.tel-notas span{ font-size: .8em; color: #6C6585; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tel-notas li:first-child span{ color: var(--texto-2); }
 .tel-nav{
-  position: absolute; left: 10px; right: 10px; bottom: 14px;
-  display: flex; align-items: center; justify-content: space-between; gap: 2px;
-  padding: 5px; border-radius: 999px; background: rgba(34,30,27,.96); border: 1px solid #3A332E;
+  position: absolute; left: .7em; right: .7em; bottom: 1em;
+  display: flex; align-items: center; justify-content: space-between; gap: .15em;
+  padding: .3em; border-radius: 999px; background: #fff; border: 2px solid var(--tinta); box-shadow: 3px 3px 0 var(--tinta);
 }
-.tel-tab{ flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; font-weight: 700; color: #A39A92; padding: 6px 2px; border-radius: 999px; }
-.tel-tab.activo{ background: #2C2622; color: #EDE6DF; }
-.tel-tab svg{ width: 14px; height: 14px; }
-.tel-mic{ flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: #C49A74; color: #1F1915; transition: background .3s; }
-.tel-mic svg{ width: 20px; height: 20px; }
-.telefono[data-paso="1"] .tel-mic{ background: #E07A66; animation: latido .9s infinite; }
-.telefono[data-paso="3"] .tel-sync{ color: #C49A74; }
+.tel-tab{ flex: 1; display: flex; flex-direction: column; align-items: center; gap: .1em; font-size: .72em; font-weight: 800; color: var(--texto-2); padding: .4em .15em; border-radius: 999px; border: 2px solid transparent; transition: background .3s; }
+.tel-tab.activo{ background: var(--rosa-claro); border-color: var(--tinta); color: var(--tinta); }
+.tel-tab svg{ width: 1.45em; height: 1.45em; }
+.tel-mic{ flex: 0 0 auto; width: 3.3em; height: 3.3em; border-radius: 50%; display: grid; place-items: center; background: var(--rosa); border: 2px solid var(--tinta); box-shadow: 2px 2px 0 var(--tinta); transition: background .3s; }
+.tel-mic svg{ width: 1.5em; height: 1.5em; }
+.telefono[data-paso="1"] .tel-mic{ background: #D93B5A; color: #fff; animation: latido .9s infinite; }
+.telefono[data-paso="3"] .tel-sync{ background: var(--celeste); border-color: var(--tinta); color: var(--tinta); }
 .telefono[data-paso="3"] .tel-sync svg{ animation: girar 1s linear infinite; }
 @keyframes girar{ to{ rotate: 360deg; } }
 .tel-grabando{
-  position: absolute; left: 10px; right: 10px; bottom: 74px; padding: 12px;
-  border-radius: 16px; background: #2C2622; border: 1px solid #4A3F37;
+  position: absolute; left: .75em; right: .75em; bottom: 5.4em; padding: .8em;
+  background: #fff; border: 2px solid var(--tinta); box-shadow: 3px 3px 0 var(--tinta);
   opacity: 0; translate: 0 20px; transition: opacity .35s, translate .5s var(--curva);
 }
 .telefono[data-paso="1"] .tel-grabando{ opacity: 1; translate: 0 0; }
-.tel-ondas{ display: flex; align-items: center; justify-content: center; gap: 3px; height: 30px; }
-.tel-ondas i{ width: 4px; height: 100%; border-radius: 2px; background: #E07A66; animation: onda .7s ease-in-out infinite alternate; }
+.tel-ondas{ display: flex; align-items: center; justify-content: center; gap: .22em; height: 2.2em; }
+.tel-ondas i{ width: .3em; height: 100%; border-radius: 2px; background: #D93B5A; animation: onda .7s ease-in-out infinite alternate; }
 .tel-ondas i:nth-child(2n){ animation-duration: .5s; } .tel-ondas i:nth-child(3n){ animation-delay: -.3s; }
-.tel-grabando p{ margin-top: 8px; text-align: center; font-size: 12px; font-style: italic; }
+.tel-grabando p{ margin-top: .5em; text-align: center; font-size: .9em; font-weight: 700; font-style: italic; }
 .tel-aviso{
-  position: absolute; left: 12px; right: 12px; top: 40px; padding: 11px 13px; border-radius: 14px;
-  background: #2C3A2E; border: 1px solid #4F7A55; color: #DFF5E2; font-weight: 700; font-size: 12.5px;
+  position: absolute; left: .9em; right: .9em; top: 2.6em; padding: .75em .9em;
+  background: var(--menta); border: 2px solid var(--tinta); box-shadow: 3px 3px 0 var(--tinta);
+  font-weight: 800; font-size: .95em;
   opacity: 0; translate: 0 -30px; transition: opacity .35s, translate .6s var(--curva);
 }
 .telefono[data-paso="2"] .tel-aviso-1, .telefono[data-paso="3"] .tel-aviso-2{ opacity: 1; translate: 0 0; }
@@ -563,6 +589,14 @@ html.sin3d .llavero-respaldo{ display: block; position: absolute; right: calc(va
 }
 .app-llavero .ventana-cuerpo{ padding: 8px; }
 .app-llavero.visible{ opacity: 1; scale: 1; rotate: -3deg; }
+/* Compus con pantalla bajita (notebooks, ventana achicada): todo más compacto para que entre */
+@media (max-height: 820px) and (min-width: 761px) and (min-aspect-ratio: 4/5){
+  .app .titulo-cinetico{ font-size: clamp(2.4rem, 10vh, 5.4rem); }
+  .app-pasos{ gap: 8px; margin-top: 1.1rem; }
+  .app-pasos li{ padding: 8px 14px; }
+  .app-pasos b{ font-size: 1.05rem; }
+  .app-pasos span{ font-size: .92rem; }
+}
 
 /* ============================================================
    7 · ABRIR
@@ -744,14 +778,7 @@ html.con-intro .arranque{ display: grid; }
   .app-pasos li{ grid-area: 1 / 1; opacity: 0; translate: 0 14px; transition: opacity .35s, translate .5s var(--curva); }
   .app-pasos li.activo{ opacity: 1; translate: -3px -3px; box-shadow: 6px 6px 0 var(--tinta); }
   .telefono{ width: min(46vw, 30svh); border-radius: 34px; padding: 7px; box-shadow: 12px 12px 0 -3px var(--lila), 12px 12px 0 0 var(--tinta); }
-  .tel-pantalla{ border-radius: 27px; font-size: 11px; padding: 10px 9px 0; gap: 7px; }
-  .tel-notas li:nth-child(n+3){ display: none; }
-  .tel-cabeza b{ font-size: 17px; }
-  .tel-grabando{ bottom: 62px; }
-  .tel-nav{ bottom: 9px; left: 6px; right: 6px; }
-  .tel-mic{ width: 34px; height: 34px; }
-  .tel-tab{ font-size: 8.5px; }
-  .tel-aviso{ font-size: 10.5px; top: 30px; }
+  .tel-pantalla{ border-radius: 27px; }
   .app-llavero{ width: 38vw; right: 0; bottom: 4%; }
 
   .abrir-centro{ margin-top: 44vh; }

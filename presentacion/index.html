@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:ital,wght@0,400..800;1,400..800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/presentacion/presentacion.css?v=1">
+<link rel="stylesheet" href="/presentacion/presentacion.css?v=2">
 <script>
   // La intro (la pantallita que se prende) se ve una vez por visita.
   (function(){
@@ -37,7 +37,7 @@
 <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js"></script>
-<script type="module" src="/presentacion/principal.js?v=1"></script>
+<script type="module" src="/presentacion/principal.js?v=2"></script>
 </head>
 <body>
 <a class="saltar" href="#inicio">Saltar al contenido</a>
@@ -339,23 +339,36 @@
       <div class="app-escena">
         <div class="telefono-perspectiva">
           <div class="telefono" id="telefono" data-paso="0" aria-hidden="true">
+            <!-- Igual a la app de notas de verdad (versión 9): cielo, ventana con barra rosa y barra blanca abajo -->
             <div class="tel-pantalla">
               <div class="tel-estado"><span>9:41</span><span class="tel-iconos"><i></i><i></i><i></i></span></div>
-              <div class="tel-cabeza"><small>KYNUS</small><b>Notas</b></div>
-              <div class="tel-buscar">Buscar</div>
-              <ul class="tel-notas">
-                <li><b>Lista del súper</b><span>Leche, pan, yerba…</span></li>
-                <li><b>Feria de ciencias</b><span>Llevar el llavero y el cargador</span></li>
-                <li><b>Física</b><span>TP de circuitos para el lunes</span></li>
-                <li><b>Ideas</b><span>Carcasa en forma de gota</span></li>
-              </ul>
+              <div class="tel-ventana">
+                <div class="tel-cabeza">
+                  <div><small>KYNUS</small><b>Notas</b></div>
+                  <span class="tel-boton">···</span>
+                </div>
+                <div class="tel-cuerpo">
+                  <p class="tel-saludo">Buenas tardes, Ciro</p>
+                  <div class="tel-tabs"><span class="activo">Notas</span><span>Tareas</span></div>
+                  <div class="tel-buscar">Buscar</div>
+                  <div class="tel-crear">+ Crear nota</div>
+                  <div class="tel-seccion">
+                    <p class="tel-sec-titulo">NOTAS</p>
+                    <ul class="tel-notas">
+                      <li><b>Lista del súper</b><span>Leche, pan, yerba…</span></li>
+                      <li><b>Feria de ciencias</b><span>Llevar el llavero y el cargador</span></li>
+                      <li><b>Física</b><span>TP de circuitos para el lunes</span></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
               <div class="tel-grabando"><div class="tel-ondas"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><p>“Dentista el jueves a las 5”</p></div>
               <div class="tel-aviso tel-aviso-1">Agendado: Dentista · jueves 17:00</div>
               <div class="tel-aviso tel-aviso-2">Llavero al día · 1 evento</div>
               <div class="tel-nav">
-                <span class="tel-tab activo">Notas</span>
+                <span class="tel-tab activo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>Notas</span>
                 <span class="tel-mic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
-                <span class="tel-tab">Tareas</span>
+                <span class="tel-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17M11 6h10M11 12h10M11 18h10"/></svg>Tareas</span>
                 <span class="tel-tab tel-sync"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M3 21v-5h5"/></svg>Llavero</span>
               </div>
             </div>
