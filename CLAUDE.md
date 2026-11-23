@@ -57,7 +57,15 @@ App web (celular, Chrome Android)
 - Un solo botón: 1 clic prende · 2 clics muestra eventos · 1 clic sale de eventos ·
   mantener 3 s apaga · se apaga solo a los 5 min (`TIEMPO_APAGADO_AUTO 300000`). Ventana de clics 300 ms.
 - Animación de arranque: punto → línea → estrella de 8 puntas que gira y se "sella" →
-  se disuelve en partículas que forman los ojos (lógica en `animacion_inicio.h`).
+  la estrella se achica a iconito y se escribe una frase (máquina de escribir) → la frase se
+  desarma en partículas que forman los ojos (`animacion_inicio.h` + `frases.h`).
+- `frases.h`: 50 frases (citas con autor, estudio, recordatorios, de Kynus), máx. 64; 21 letras por
+  renglón, 4 renglones con autor / 5 sin. No se repiten hasta que salen todas (Preferences "kynus").
+  Tildes/ñ/¿/¡ se pasan a CP437 (`display.cp437(true)`); los títulos de eventos también.
+- `animos.h`: moods al azar (feliz, cansado, triste, enojado, sorprendido, curioso, enamorado,
+  dormido, nervioso, confundido, pícaro, emocionado). `PantallaKynus` deja dibujar extras
+  (lágrima, corazones, Zzz, ?, !, estrellitas) antes de cada cuadro de RoboEyes.
+- El código actual es la versión **sin botón** (BLE "Llavero C3"): la frase sale cada vez que se prende.
 - Hardware: LiPo 502030 + cargador TP4056 (USB-C) + interruptor. No usar pila de 9 V.
 
 ### Página de presentación (`presentacion/`, se sirve en `/`)

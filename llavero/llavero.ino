@@ -6,12 +6,16 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <FluxGarage_RoboEyes.h>
+#include "animos.h"            // PantallaKynus y los estados de ánimo
 #include "animacion_inicio.h"
+#include "frases.h"
 
 // ============================================================
-//  LLAVERO — versión sin botón
-//  - Al encender: animación de inicio (línea → estrella → ojitos)
-//  - Siempre muestra los ojitos
+//  KYNUS — llavero (versión sin botón)
+//  - Al encender: estrella → frase del día → la frase se desarma en los ojitos
+//  - Los ojitos cambian de mood solos cada tanto (feliz, cansado, triste,
+//    enojado, sorprendido, curioso, enamorado, dormido, nervioso,
+//    confundido, pícaro, emocionado)
 //  - Cuando llegan eventos por Bluetooth los muestra uno por uno
 //  - Cada 1 minuto vuelve a mostrar los eventos del día
 // ============================================================
@@ -30,8 +34,9 @@
 #define TIEMPO_POR_EVENTO   3000    // cada evento se ve 3 segundos
 #define CADA_CUANTO_EVENTOS 60000   // cada 1 minuto vuelve a mostrar los eventos
 
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-RoboEyes<Adafruit_SSD1306> roboEyes(display);
+PantallaKynus display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+RoboEyes<PantallaKynus> roboEyes(display);
+Animos<PantallaKynus, RoboEyes<PantallaKynus>> animos(display, roboEyes);
 
 String mensajeCompleto = "";
 volatile bool hayEvento = false;
@@ -72,6 +77,7 @@ void mostrarEventoActual() {
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
+    display.setTextWrap(true);
 
     if (totalEventos == 0) {
         display.setCursor(10, 28);
@@ -96,11 +102,11 @@ void mostrarEventoActual() {
     display.println("EVENTO " + String(eventoActual + 1) + "/" + String(totalEventos));
     display.drawLine(0, 10, 128, 10, SSD1306_WHITE);
 
-    // Hora y título
+    // Hora y título (las tildes y la ñ se pasan a la fuente del OLED)
     display.setCursor(0, 18);
     display.println("Hora: " + hora);
     display.setCursor(0, 36);
-    display.println(titulo);
+    display.println(frases::aCp437(titulo));
 
     display.display();
 }
@@ -116,7 +122,17 @@ void empezarEventos() {
 void volverAOjos() {
     mostrandoEventos = false;
     ultimaVezEventos = millis();
+    animos.poner(FELIZ, 6000);   // contento después de mostrarte el día
     Serial.println("Modo ojos");
+}
+
+// Los dibujitos de cada mood se pintan encima de los ojos, justo antes de mostrar el cuadro
+void dibujarExtras() { animos.dibujarExtras(); }
+
+// Prender: estrella → frase → ojos
+void despertar() {
+    animacionInicioConFrase(display, roboEyes, -1);   // -1 = sin botón
+    animos.empezar();
 }
 
 class MiCallback : public BLECharacteristicCallbacks {
@@ -147,6 +163,7 @@ void setup() {
     if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
         Serial.println("Error: OLED SSD1306 no encontrada.");
     }
+    display.cp437(true);   // tabla de letras correcta (tildes, ñ, ¿, ¡)
     display.clearDisplay();
     display.display();
 
@@ -169,8 +186,8 @@ void setup() {
     pServer->getAdvertising()->start();
     Serial.println("BLE iniciado y publicando.");
 
-    // Se prende solo: animación de inicio y después los ojitos
-    animacionInicio(display, roboEyes, -1);   // -1 = sin botón
+    // Se prende solo: estrella, frase y después los ojitos
+    despertar();
     ultimaVezEventos = millis();
     Serial.println("Pantalla encendida");
 }
@@ -198,7 +215,10 @@ void loop() {
             }
         }
     } else {
+        animos.actualizar();
+        display.antesDeMostrar = dibujarExtras;   // sólo mientras se dibujan los ojos
         roboEyes.update();
+        display.antesDeMostrar = nullptr;
 
         // Cada tanto, recordar los eventos del día (solo si hay)
         if (totalEventos > 0 && millis() - ultimaVezEventos > CADA_CUANTO_EVENTOS) {
