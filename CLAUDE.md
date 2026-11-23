@@ -33,10 +33,16 @@ App web (celular, Chrome Android)
 - **Pendiente de seguridad:** `/audio` y `/eventos` no tienen ninguna protección.
 - Nunca subir `credentials.json`, `token.pickle` ni claves (ya pasó una vez; están en `.gitignore`).
 
-### App web (`index.html`, `styles.css`, `app.js`)
-- Barra de búsqueda arriba; abajo 3 botones: notas (izq.), botón redondo de grabar (centro), listas (der.).
-- Notas con texto enriquecido (`contenteditable`) y listas, guardadas en `localStorage`
-  con las claves `llavero_notas` y `llavero_listas` (**no renombrar**: se perderían los datos).
+### App web (`index.html`, `styles.css`, `movil.css`, `app.js`, `plantillas.js`) — versión 10
+- Estética Y2K pastel (cielo con nubes, ventanas Win98). `movil.css` sólo se aplica en celulares (`html.movil`).
+- Panel con notas y tareas; abajo: Notas · grabar (→ Calendar) · Tareas · Llavero. Al editar, esa barra se cambia
+  por la de la nota: deshacer/rehacer · QR · buscar · grabar · menú "···" · mostrar/ocultar herramientas.
+- Menú "···": foto, archivo (PDF/TXT/DOCX), presentación, exportar (PDF/Word/HTML/MD/TXT), fondo, fuente,
+  tabla, efectos de texto y 25 plantillas (`plantillas.js`, se carga sólo al abrirlas). Estado de la nota
+  (borrador/en curso/terminada), contador con límite de 35.000 caracteres y casillas dentro de las notas.
+- Todo se guarda en `localStorage` con la clave `llavero_docs` (las claves viejas `llavero_notas` y
+  `llavero_listas` se migran solas; **no renombrar** claves: se perderían los datos). Fotos, audios, archivos
+  y fotos de portada van en IndexedDB (`llavero_media`).
 - BLE: `requestDevice({ filters:[{namePrefix:"Kynus"},{namePrefix:"Llavero"}], optionalServices:[SERVICE_UUID] })`
   - `SERVICE_UUID = 6e400001-b5a3-f393-e0a9-e50e24dcca9e`, `CHAR_UUID = 6e400002-b5a3-f393-e0a9-e50e24dcca9e`
   - Mensaje: `"HH:MM título|HH:MM título|..."`, enviado en trozos de 20 bytes. Vacío → "Sin eventos hoy".

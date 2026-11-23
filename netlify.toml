@@ -7,7 +7,7 @@
 
 [build]
   # Se arma una carpeta "dist" sólo con lo que es público (sin app.py, zips, claves, etc.)
-  command = "mkdir -p dist && cp -r presentacion iconos dist/ && cp styles.css movil.css app.js manifest.webmanifest dist/ && cp index.html dist/app.html && cp iconos/favicon-32.png dist/favicon.ico"
+  command = "mkdir -p dist && cp -r presentacion iconos dist/ && cp styles.css movil.css app.js plantillas.js manifest.webmanifest dist/ && cp index.html dist/app.html && cp iconos/favicon-32.png dist/favicon.ico"
   publish = "dist"
 
 [[redirects]]

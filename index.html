@@ -8,10 +8,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Kynus</title>
 <meta name="apple-mobile-web-app-title" content="Kynus">
-<link rel="icon" href="/iconos/favicon.svg?v=9" type="image/svg+xml">
-<link rel="icon" href="/iconos/favicon-32.png?v=9" sizes="32x32" type="image/png">
-<link rel="apple-touch-icon" href="/iconos/icono-180.png?v=9">
-<link rel="manifest" href="/manifest.webmanifest?v=9">
+<link rel="icon" href="/iconos/favicon.svg?v=10" type="image/svg+xml">
+<link rel="icon" href="/iconos/favicon-32.png?v=10" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/iconos/icono-180.png?v=10">
+<link rel="manifest" href="/manifest.webmanifest?v=10">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:ital,wght@0,400..800;1,400..800&family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -39,8 +39,8 @@
     window.addEventListener("orientationchange", aplicar);
   })();
 </script>
-<link rel="stylesheet" href="/styles.css?v=9">
-<link rel="stylesheet" href="/movil.css?v=9">
+<link rel="stylesheet" href="/styles.css?v=10">
+<link rel="stylesheet" href="/movil.css?v=10">
 </head>
 <body>
 
@@ -68,14 +68,20 @@
   </defs>
 </svg>
 
+<!-- Estrellitas que titilan en el cielo (sólo opacidad: no cuestan nada) -->
+<div class="estrellitas" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
 <div class="app">
 
   <!-- ============ SIDEBAR ============ -->
   <aside class="sidebar" id="sidebar">
     <header class="side-head">
-      <div>
-        <p class="marca">KYNUS</p>
-        <h1 id="sideTitulo">Notas</h1>
+      <div class="side-titulo">
+        <span class="ojitos" aria-hidden="true"><i></i><i></i></span>
+        <div>
+          <p class="marca">KYNUS</p>
+          <h1 id="sideTitulo">Notas</h1>
+        </div>
       </div>
       <div class="side-acciones">
         <button class="icono" id="btnMenu" title="Más opciones" aria-label="Más opciones">
@@ -148,7 +154,10 @@
     <section class="vacio" id="vistaVacia">
       <h1 class="titulo-pagina" id="tituloPagina">Notas</h1>
       <div class="vacio-centro">
-        <div class="vacio-icono" aria-hidden="true"><svg><use href="#estrella"/></svg></div>
+        <div class="mascota" aria-hidden="true">
+          <span class="ojitos grande"><i></i><i></i></span>
+          <svg class="mascota-estrella"><use href="#estrella"/></svg>
+        </div>
         <h2 id="vacioTitulo">Todavía no hay notas</h2>
         <p id="vacioSub">Escribí ahora. Organizá después.</p>
         <button class="btn-acento" id="btnCrearVacio">
@@ -164,7 +173,7 @@
         <button class="icono solo-movil" id="btnVolver" aria-label="Volver">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </button>
-        <span class="ed-fecha" id="edFecha"></span>
+        <span class="ed-ventana" id="edVentana">nota.txt</span>
         <div class="ed-acciones">
           <button class="icono" id="btnFijar" title="Fijar" aria-label="Fijar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg>
@@ -172,14 +181,18 @@
           <button class="icono" id="btnZen" title="Modo lectura" aria-label="Modo lectura">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
-          <button class="icono" id="btnNotaMenu" title="Más" aria-label="Más">
-            <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
-          </button>
         </div>
       </header>
 
-      <div class="ed-hoja">
+      <div class="ed-hoja" id="edHoja">
+        <div class="ed-portada" id="edPortada" hidden></div>
         <input type="text" id="edTitulo" class="ed-titulo" placeholder="Sin título" autocomplete="off">
+
+        <div class="ed-meta">
+          <button class="estado" id="edEstado" data-estado="borrador" title="Cambiar estado"><i></i><span>Borrador</span></button>
+          <span class="contador" id="edContador">0 / 35.000 caracteres</span>
+          <span class="ed-fecha" id="edFecha"></span>
+        </div>
 
         <div class="toolbar" id="toolbar">
           <button data-cmd="bold" title="Negrita"><b>B</b></button>
@@ -187,9 +200,12 @@
           <button data-cmd="underline" title="Subrayado"><u>U</u></button>
           <button data-cmd="strikeThrough" title="Tachado"><s>S</s></button>
           <span class="sep"></span>
-          <button data-block="H2" title="Título">H</button>
+          <button data-block="H2" title="Título (en una presentación, cada título es una diapositiva)">H</button>
           <button data-cmd="insertUnorderedList" title="Lista">•</button>
           <button data-cmd="insertOrderedList" title="Lista numerada">1.</button>
+          <button data-check title="Lista con casillas">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="7" rx="1"/><path d="m4.5 7.5 1.5 1.5 2.5-3M14 7.5h7M3 14h7v7H3zM14 17.5h7"/></svg>
+          </button>
           <button data-block="BLOCKQUOTE" title="Cita">❝</button>
           <span class="sep"></span>
           <button id="tbFoto" title="Agregar foto">
@@ -204,7 +220,7 @@
         </div>
 
         <!-- Nota -->
-        <div id="edCuerpo" class="ed-cuerpo" contenteditable="true" data-placeholder="Empezá a escribir…"></div>
+        <div id="edCuerpo" class="ed-cuerpo" contenteditable="true" data-placeholder="Anotá una idea, una decisión o el próximo paso que no querés olvidar…"></div>
 
         <!-- Tarea -->
         <div id="edTareas" class="ed-tareas" hidden>
@@ -241,6 +257,73 @@
   </button>
 </nav>
 
+<!-- ============ BARRA DE LA NOTA (aparece al editar) ============ -->
+<div class="barra-nota" id="barraNota">
+  <div class="grupo">
+    <button id="bnDeshacer" title="Deshacer" aria-label="Deshacer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+    </button>
+    <button id="bnRehacer" title="Rehacer" aria-label="Rehacer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
+    </button>
+  </div>
+  <div class="grupo">
+    <button id="bnQR" title="Pasar la nota por código QR" aria-label="Código QR">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>
+    </button>
+    <button id="bnBuscar" title="Buscar en la nota (Ctrl+F)" aria-label="Buscar en la nota">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4-4"/></svg>
+    </button>
+  </div>
+  <button class="grabar chico" id="bnGrabar" aria-label="Grabar y agendar en Google Calendar" title="Grabar y agendar">
+    <svg class="ico-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    <span class="ico-stop"></span>
+  </button>
+  <div class="grupo">
+    <button id="btnNotaMenu" title="Más opciones" aria-label="Más opciones">
+      <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+    </button>
+    <button id="bnHerramientas" title="Mostrar u ocultar las herramientas" aria-label="Herramientas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- Buscar dentro de la nota -->
+<div class="busca-nota" id="buscaNota" hidden>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4-4"/></svg>
+  <input type="search" id="inpBuscaNota" placeholder="Buscar en la nota" autocomplete="off">
+  <span class="busca-cuenta" id="buscaCuenta">0/0</span>
+  <button id="buscaAnterior" aria-label="Anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m18 15-6-6-6 6"/></svg></button>
+  <button id="buscaSiguiente" aria-label="Siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
+  <button id="buscaCerrar" aria-label="Cerrar búsqueda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+</div>
+
+<!-- Menú grande de la nota (con submenús) -->
+<div class="menu-rico" id="menuRico" hidden></div>
+
+<!-- Ventanita (QR) -->
+<div class="modal" id="modal" hidden>
+  <div class="modal-ventana" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+    <div class="modal-barra"><span id="modalTitulo">compartir.exe</span><button id="modalCerrar" aria-label="Cerrar">×</button></div>
+    <div class="modal-cuerpo" id="modalCuerpo"></div>
+  </div>
+</div>
+
+<!-- Presentación -->
+<div class="presentacion" id="presentacion" hidden>
+  <div class="diapo-marco">
+    <div class="diapo-barra"><span id="diapoTitulo">presentacion.exe</span><button id="diapoCerrar" aria-label="Cerrar presentación">×</button></div>
+    <div class="diapo" id="diapo"></div>
+  </div>
+  <div class="diapo-controles">
+    <button id="diapoAnterior" aria-label="Anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
+    <span id="diapoCuenta">1 / 1</span>
+    <button id="diapoSiguiente" aria-label="Siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+    <button id="diapoPantalla" aria-label="Pantalla completa" title="Pantalla completa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+  </div>
+</div>
+
 <!-- ============ BIENVENIDA ============ -->
 <div class="bienvenida caja" id="bienvenida" hidden>
   <p class="marca">KYNUS</p>
@@ -261,8 +344,10 @@
 <div class="aviso" id="aviso" role="status"></div>
 
 <input type="file" id="inpFoto" accept="image/*" hidden>
+<input type="file" id="inpArchivo" accept=".pdf,.txt,.md,.docx,.doc,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword" hidden>
+<input type="file" id="inpPortada" accept="image/*" hidden>
 <input type="file" id="inpImportar" accept="application/json" hidden>
 
-<script src="/app.js?v=9"></script>
+<script src="/app.js?v=10"></script>
 </body>
 </html>
