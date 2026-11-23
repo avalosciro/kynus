@@ -33,7 +33,12 @@ App web (celular, Chrome Android)
 - Los archivos se sirven con ruta absoluta (`os.path.dirname(__file__)`), si no Render devuelve 0 bytes.
 - `requirements.txt`: flask, requests, gunicorn.
 - Render free se duerme a los 15 min: la primera petición tarda.
-- **Pendiente de seguridad:** `/audio` y `/transcribir` no tienen ninguna protección (cualquiera puede gastar la cuota de Groq).
+- Cuota de Groq (v17): `/audio` y `/transcribir` siguen abiertos pero con límites en memoria (`app.py`):
+  30 por hora y 150 por día por IP (Netlify la pasa en `X-Nf-Client-Connection-Ip`), tope total de 18 por
+  minuto y 800 por día, audio de 3 MB como mucho (413). Responden 429 con un mensaje para la app. Los
+  rechazados no cuentan. Se reinician si Render reinicia. La app corta la grabación del botón rosa y del
+  dictado al minuto (`MAX_GRABACION`); los audios guardados en notas no van al servidor y no tienen límite.
+  Plan gratis de Groq: no cobra, sólo se agota la cuota. Opción más fuerte para después: exigir login de Google.
 
 ### Google Calendar de cada usuario (app.js, sección "GOOGLE CALENDAR")
 - `GOOGLE_CLIENT_ID` en `app.js` (ID de cliente OAuth tipo "Aplicación web"; no es secreto). Vacío = sólo la opción

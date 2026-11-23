@@ -10,7 +10,7 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 16;
+const VERSION = 17;
 const LIMITE = 35000;                    // caracteres por nota
 const esMovil = () => document.documentElement.classList.contains("movil");
 const sinMovimiento = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -982,6 +982,16 @@ $("inpArchivo").onchange = async e => {
    ============================================================ */
 let grabadora = null;
 let botonGrabando = null;
+// Lo que va al servidor (agendar y dictar) se corta solo al minuto: Groq cuenta segundos de audio
+// y el servidor no acepta audios de más de 3 MB. Los audios guardados en una nota no tienen límite.
+const MAX_GRABACION = 60 * 1000;
+
+// Mensaje para mostrar cuando falla un pedido al servidor
+function mensajeServidor(e, porDefecto){
+  if (e instanceof TypeError) return "No hay conexión con el servidor. Probá de nuevo en un ratito.";
+  if (e instanceof SyntaxError) return "El servidor no respondió bien. Probá de nuevo en un ratito.";
+  return e && e.message ? e.message : porDefecto;
+}
 
 function tipoAudio(){
   if (!window.MediaRecorder) return "";
@@ -991,7 +1001,7 @@ function tipoAudio(){
 }
 const extension = mime => mime.includes("mp4") ? "m4a" : mime.includes("ogg") ? "ogg" : "webm";
 
-async function grabar(boton, alTerminar){
+async function grabar(boton, alTerminar, maxMs = 0){
   if (grabadora){
     const mismo = botonGrabando === boton;
     grabadora.stop();
@@ -1005,8 +1015,10 @@ async function grabar(boton, alTerminar){
     const mime = tipoAudio();
     const rec = mime ? new MediaRecorder(stream, { mimeType:mime }) : new MediaRecorder(stream);
     const trozos = [];
+    const timers = [];
     rec.ondataavailable = e => e.data.size && trozos.push(e.data);
     rec.onstop = () => {
+      timers.forEach(clearTimeout);
       stream.getTracks().forEach(t => t.stop());
       boton.classList.remove("grabando");
       grabadora = botonGrabando = null;
@@ -1017,7 +1029,11 @@ async function grabar(boton, alTerminar){
     grabadora = rec;
     botonGrabando = boton;
     boton.classList.add("grabando");
-    avisar("Grabando… tocá de nuevo para terminar", "", 0);
+    avisar(maxMs ? "Grabando… tocá de nuevo para terminar (hasta 1 minuto)" : "Grabando… tocá de nuevo para terminar", "", 0);
+    if (maxMs){
+      timers.push(setTimeout(() => { if (grabadora === rec) avisar("Quedan 10 segundos…", "", 0); }, maxMs - 10000));
+      timers.push(setTimeout(() => { if (grabadora === rec){ rec.stop(); avisar("Se cortó solo al minuto", "", 1500); } }, maxMs));
+    }
   }catch{
     avisar("No se pudo usar el micrófono. Revisá los permisos.", "error", 4000);
   }
@@ -1057,8 +1073,8 @@ function dictar(boton){
       if (d && d.tipo === "tarea") agregarItems(partirEnTareas(texto));
       else insertarEnNota(texto);
       avisar("Texto agregado", "ok");
-    }catch{ avisar("No se pudo transcribir", "error"); }
-  });
+    }catch(e){ avisar(mensajeServidor(e, "No se pudo transcribir"), "error", 4500); }
+  }, MAX_GRABACION);
 }
 $("tbDictar").onclick = () => dictar($("tbDictar"));
 
@@ -1267,12 +1283,11 @@ $("btnGrabar").onclick = () => grabar($("btnGrabar"), async blob => {
     animo("feliz", 2000);
     actualizarLlaveroSolo("evento");
   }catch(e){
-    avisar(e instanceof TypeError ? "No hay conexión con el servidor. Probá de nuevo en un ratito."
-         : e && e.message ? e.message : "No se pudo entender el audio. Probá de nuevo.", "error", 4500);
+    avisar(mensajeServidor(e, "No se pudo entender el audio. Probá de nuevo."), "error", 4500);
   }finally{
     btn.classList.remove("ocupado");
   }
-});
+}, MAX_GRABACION);
 // El mismo botón, dentro de la barra de la nota (copia el estado del original)
 $("bnGrabar").onclick = () => $("btnGrabar").click();
 const espejo = new MutationObserver(() => {

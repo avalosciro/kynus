@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify, send_file
+from collections import defaultdict, deque
 import requests
 import json
 import os
 import re
+import time
 import datetime
+import threading
 
 # El servidor sólo ENTIENDE lo que dijiste (audio → texto → evento).
 # Agendar lo hace el celular de cada usuario en SU Google Calendar
@@ -16,6 +19,89 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 BASE = os.path.dirname(__file__)
 ARGENTINA = datetime.timezone(datetime.timedelta(hours=-3))
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+
+
+# ---------- Cuidar la cuota gratis de Groq ----------
+# /audio y /transcribir están abiertos (la app no puede guardar secretos), así que:
+#  1. cada persona (IP) tiene un límite por hora y por día,
+#  2. hay un tope total por minuto y por día, por debajo de los límites del plan gratis de Groq,
+#  3. el audio no puede pesar más de MAX_AUDIO (la app además corta la grabación al minuto).
+# Los contadores viven en memoria: si Render reinicia el servidor, empiezan de cero.
+POR_HORA_POR_PERSONA = 30
+POR_DIA_POR_PERSONA = 150
+TOTAL_POR_MINUTO = 18      # Groq gratis: ~20 pedidos por minuto a Whisper
+TOTAL_POR_DIA = 800        # Groq gratis: ~1000 pedidos por día al modelo que entiende el evento
+MAX_AUDIO = 3 * 1024 * 1024
+
+app.config['MAX_CONTENT_LENGTH'] = MAX_AUDIO + 64 * 1024   # Flask corta solo los pedidos más grandes
+
+_candado = threading.Lock()
+_por_persona = defaultdict(deque)     # ip → horarios de sus pedidos de hoy
+_ultimo_minuto = deque()              # horarios de todos los pedidos del último minuto
+_hoy = {"dia": None, "total": 0}
+
+
+def ip_del_pedido():
+    """La IP de quien graba: Netlify la pasa en su encabezado; si no, la primera de X-Forwarded-For."""
+    ip = request.headers.get("X-Nf-Client-Connection-Ip")
+    if not ip:
+        ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "?").split(",")[0]
+    return ip.strip()
+
+
+def limite_superado():
+    """Si se pasó algún límite devuelve el mensaje para la app; si no, anota el pedido y devuelve None."""
+    ahora = time.time()
+    dia = datetime.datetime.now(ARGENTINA).date()
+    ip = ip_del_pedido()
+    with _candado:
+        if _hoy["dia"] != dia:                     # empieza otro día: todo de cero
+            _hoy.update(dia=dia, total=0)
+            _por_persona.clear()
+        while _ultimo_minuto and ahora - _ultimo_minuto[0] > 60:
+            _ultimo_minuto.popleft()
+        mios = _por_persona[ip]
+        while mios and ahora - mios[0] > 86400:
+            mios.popleft()
+        en_la_hora = sum(1 for t in mios if ahora - t <= 3600)
+
+        if _hoy["total"] >= TOTAL_POR_DIA:
+            return "Kynus llegó al límite de grabaciones de hoy. Mañana vuelve a andar."
+        if len(mios) >= POR_DIA_POR_PERSONA:
+            return "Llegaste al límite de grabaciones de hoy. Mañana podés seguir."
+        if en_la_hora >= POR_HORA_POR_PERSONA:
+            return "Grabaste muchas veces seguidas. Esperá un rato y probá de nuevo."
+        if len(_ultimo_minuto) >= TOTAL_POR_MINUTO:
+            return "Hay mucha gente grabando justo ahora. Probá de nuevo en un minuto."
+
+        mios.append(ahora)
+        _ultimo_minuto.append(ahora)
+        _hoy["total"] += 1
+    return None
+
+
+def revisar_pedido():
+    """Controles antes de gastar cuota: que haya audio, que no sea enorme y que no se pase de los límites."""
+    archivo = request.files.get('audio')
+    if archivo is None:
+        return jsonify({'error': 'No se recibió audio'}), 400
+    archivo.seek(0, os.SEEK_END)
+    tamanio = archivo.tell()
+    archivo.seek(0)
+    if tamanio > MAX_AUDIO:
+        return jsonify({'error': 'El audio es muy largo. Probá con uno más corto.'}), 413
+    if tamanio == 0:
+        return jsonify({'error': 'El audio llegó vacío. Probá de nuevo.'}), 400
+    mensaje = limite_superado()
+    if mensaje:
+        print(f"Límite: {ip_del_pedido()} → {mensaje}")
+        return jsonify({'error': mensaje}), 429
+    return None
+
+
+@app.errorhandler(413)
+def demasiado_grande(_):
+    return jsonify({'error': 'El audio es muy largo. Probá con uno más corto.'}), 413
 
 
 def transcribir_audio(archivo):
@@ -75,8 +161,9 @@ def extraer_evento(texto, hoy):
 # ---------- Grabar: entender el evento (agendar lo hace el celular) ----------
 @app.route('/audio', methods=['POST'])
 def recibir_audio():
-    if 'audio' not in request.files:
-        return jsonify({'error': 'No se recibió audio'}), 400
+    problema = revisar_pedido()
+    if problema:
+        return problema
 
     texto = transcribir_audio(request.files['audio'])
     print(f"Transcripción: {texto}")
@@ -109,8 +196,9 @@ def recibir_audio():
 # ---------- Solo transcribir (notas y listas) ----------
 @app.route('/transcribir', methods=['POST'])
 def solo_transcribir():
-    if 'audio' not in request.files:
-        return jsonify({'error': 'No se recibió audio'}), 400
+    problema = revisar_pedido()
+    if problema:
+        return problema
     texto = transcribir_audio(request.files['audio'])
     print(f"Transcripción nota: {texto}")
     return jsonify({'ok': True, 'texto': texto})
