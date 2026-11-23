@@ -63,7 +63,9 @@ App web (celular, Chrome Android)
     entiende el formato viejo `"HH:MM título|..."` (todo de hoy).
   - Envío automático (v14): después de la primera sincronización, la app recuerda el `BluetoothDevice`
     mientras está abierta (puntito menta en el botón Llavero) y le manda la agenda sola al grabar un evento,
-    al volver a la app y cada 30 min; si está lejos, reintenta cada 5 min. Conecta, escribe y desconecta.
+    al volver a la app (si pasaron 20 s) y cada 30 min; si está lejos, reintenta cada 5 min. Conecta, escribe
+    y desconecta. Google tarda unos segundos en listar un evento recién creado: por eso los recién
+    agendados se suman igual al mensaje durante 5 min (`sumarRecientes`, sin duplicar).
     Si Google está conectado con el permiso vencido, no manda (no pisa la agenda con sólo lo de Kynus).
     `getDevices()` (recordarlo entre sesiones) viene apagado en Chrome Android: al reabrir la app hay que
     tocar Sincronizar una vez.

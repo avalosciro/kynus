@@ -10,7 +10,7 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 14;
+const VERSION = 15;
 const LIMITE = 35000;                    // caracteres por nota
 const esMovil = () => document.documentElement.classList.contains("movil");
 const sinMovimiento = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1255,6 +1255,7 @@ $("btnGrabar").onclick = () => grabar($("btnGrabar"), async blob => {
     if (!res.ok || data.error) throw new Error(data.error);
     const ev = { titulo:data.evento, fecha:data.fecha, hora:data.hora || "09:00" };
     guardarEvento(ev);
+    recordarReciente(ev);
 
     if (!permiso){ ofrecerAgregar(ev); actualizarLlaveroSolo("evento"); return; }
     const error = await permiso;
@@ -1356,6 +1357,22 @@ let otroEnvio = false;         // llegó otro pedido mientras se mandaba
 let llaveroPendiente = false;  // el último envío automático no se pudo hacer
 let ultimoEnvioLlavero = 0;
 
+// Google puede tardar unos segundos en incluir en la lista un evento recién creado. Por eso los
+// eventos que se acaban de agendar se suman igual a lo que se manda al llavero durante 5 minutos.
+const eventosRecientes = [];
+function recordarReciente(ev){
+  eventosRecientes.push({ titulo:ev.titulo, fecha:ev.fecha, hora:ev.hora, cuando:Date.now() });
+}
+function sumarRecientes(eventos){
+  const ahora = Date.now();
+  for (let i = eventosRecientes.length - 1; i >= 0; i--)
+    if (ahora - eventosRecientes[i].cuando > 5 * 60 * 1000) eventosRecientes.splice(i, 1);
+  const faltan = eventosRecientes.filter(r => !eventos.some(e => e.fecha === r.fecha && e.hora === r.hora && e.titulo === r.titulo));
+  if (!faltan.length) return eventos;
+  return [...eventos, ...faltan.map(r => ({ titulo:r.titulo, fecha:r.fecha, hora:r.hora }))]
+    .sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora));
+}
+
 function recordarLlavero(device){
   llavero = device;
   const btn = $("btnSync");
@@ -1400,7 +1417,7 @@ async function mandarAlLlavero(){
       });
     }
     avisar("Buscando tus eventos de la semana…", "", 0);
-    const mensaje = mensajeParaLlavero((await eventosProximos()).eventos);
+    const mensaje = mensajeParaLlavero(sumarRecientes((await eventosProximos()).eventos));
     avisar("Mandando al llavero…", "", 0);
     await escribirEnLlavero(device, mensaje.texto);
     const nuevo = !llavero;
@@ -1438,7 +1455,7 @@ function actualizarLlaveroSolo(motivo){
     try{
       const { desde, eventos } = await eventosProximos();
       if (googleConectado() && desde !== "google"){ llaveroPendiente = true; return; }
-      await escribirEnLlavero(llavero, mensajeParaLlavero(eventos).texto);
+      await escribirEnLlavero(llavero, mensajeParaLlavero(sumarRecientes(eventos)).texto);
       ultimoEnvioLlavero = Date.now();
       llaveroPendiente = false;
       if (motivo === "evento"){
@@ -1463,7 +1480,11 @@ function revisarLlavero(){
   if (llaveroPendiente || Date.now() - ultimoEnvioLlavero > 30 * 60 * 1000) actualizarLlaveroSolo("fondo");
 }
 setInterval(revisarLlavero, 5 * 60 * 1000);
-document.addEventListener("visibilitychange", revisarLlavero);
+// Al volver a la app, manda lo último (por si agregaste algo directo en Google Calendar)
+document.addEventListener("visibilitychange", () => {
+  if (!llavero || document.hidden) return;
+  if (llaveroPendiente || Date.now() - ultimoEnvioLlavero > 20 * 1000) actualizarLlaveroSolo("fondo");
+});
 
 // En las compus donde Chrome lo permite, se acuerda del llavero aunque cierres la app
 if (navigator.bluetooth && navigator.bluetooth.getDevices){
