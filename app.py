@@ -1,25 +1,21 @@
 from flask import Flask, request, jsonify, send_file
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
 import requests
 import json
 import os
+import re
 import datetime
+
+# El servidor sólo ENTIENDE lo que dijiste (audio → texto → evento).
+# Agendar lo hace el celular de cada usuario en SU Google Calendar
+# (con su permiso, desde app.js), o con el botón "Agregar a Google Calendar".
+# Por eso acá no hay ningún calendario ni cuenta de Google.
 
 app = Flask(__name__)
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-CALENDAR_ID = "avalosciro30@gmail.com"
-SCOPES = ['https://www.googleapis.com/auth/calendar']
 BASE = os.path.dirname(__file__)
-
-
-def get_calendar_service():
-    service_account_info = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT"))
-    creds = service_account.Credentials.from_service_account_info(
-        service_account_info, scopes=SCOPES
-    )
-    return build('calendar', 'v3', credentials=creds)
+ARGENTINA = datetime.timezone(datetime.timedelta(hours=-3))
+DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
 
 
 def transcribir_audio(archivo):
@@ -37,18 +33,30 @@ def transcribir_audio(archivo):
     return respuesta.json().get("text", "")
 
 
-def extraer_evento(texto):
+def fecha_de_hoy():
+    """La fecha del celular (así no falla cerca de la medianoche); si no vino, la de Argentina."""
+    hoy = request.form.get('hoy', '')
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", hoy):
+        try:
+            return datetime.date.fromisoformat(hoy)
+        except ValueError:
+            pass
+    return datetime.datetime.now(ARGENTINA).date()
+
+
+def extraer_evento(texto, hoy):
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-    hoy = datetime.date.today().strftime("%Y-%m-%d")
     body = {
         "model": "openai/gpt-oss-20b",
         "messages": [
             {"role": "system", "content": f"""Extraé el evento del texto y respondé SOLO en este formato JSON sin ningún texto extra:
             {{"titulo": "...", "fecha": "YYYY-MM-DD", "hora": "HH:MM"}}
-            Hoy es {hoy}. Si no hay fecha específica usá la fecha de hoy. Si no hay hora usá 09:00."""},
+            Hoy es {DIAS[hoy.weekday()]} {hoy.isoformat()}. Si dice un día de la semana, usá el próximo que venga.
+            Si no hay fecha específica usá la fecha de hoy. Si no hay hora usá 09:00.
+            El título tiene que ser corto (como mucho 40 letras) y empezar con mayúscula."""},
             {"role": "user", "content": texto}
         ]
     }
@@ -64,7 +72,7 @@ def extraer_evento(texto):
     return json.loads(contenido)
 
 
-# ---------- Grabar y agendar ----------
+# ---------- Grabar: entender el evento (agendar lo hace el celular) ----------
 @app.route('/audio', methods=['POST'])
 def recibir_audio():
     if 'audio' not in request.files:
@@ -76,28 +84,24 @@ def recibir_audio():
         return jsonify({'error': 'No se entendió el audio'}), 400
 
     try:
-        evento_data = extraer_evento(texto)
+        evento = extraer_evento(texto, fecha_de_hoy())
+        titulo = str(evento.get('titulo', '')).strip()[:80]
+        fecha, hora = str(evento.get('fecha', '')), str(evento.get('hora', '09:00'))
+        datetime.date.fromisoformat(fecha)                       # que sea una fecha de verdad
+        if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", hora):
+            hora = '09:00'
+        if not titulo:
+            raise ValueError('sin título')
     except Exception as e:
         print(f"No se pudo extraer el evento: {e}")
         return jsonify({'error': 'No entendí qué agendar. Probá decir qué, qué día y a qué hora.'}), 400
-    print(f"Evento: {evento_data}")
-
-    service = get_calendar_service()
-    inicio = datetime.datetime.fromisoformat(f"{evento_data['fecha']}T{evento_data['hora']}:00")
-    fin = inicio + datetime.timedelta(hours=1)
-    evento = {
-        'summary': evento_data['titulo'],
-        'start': {'dateTime': inicio.isoformat(), 'timeZone': 'America/Argentina/Cordoba'},
-        'end': {'dateTime': fin.isoformat(), 'timeZone': 'America/Argentina/Cordoba'},
-    }
-    service.events().insert(calendarId=CALENDAR_ID, body=evento).execute()
-    print(f"Evento agregado: {evento_data['titulo']}")
+    print(f"Evento: {titulo} {fecha} {hora}")
 
     return jsonify({
         'ok': True,
-        'evento': evento_data['titulo'],
-        'fecha': evento_data['fecha'],
-        'hora': evento_data['hora'],
+        'evento': titulo,
+        'fecha': fecha,
+        'hora': hora,
         'transcripcion': texto,
     })
 
@@ -110,29 +114,6 @@ def solo_transcribir():
     texto = transcribir_audio(request.files['audio'])
     print(f"Transcripción nota: {texto}")
     return jsonify({'ok': True, 'texto': texto})
-
-
-# ---------- Eventos de hoy ----------
-@app.route('/eventos', methods=['GET'])
-def obtener_eventos():
-    service = get_calendar_service()
-    hoy = datetime.date.today()
-    resultado = service.events().list(
-        calendarId=CALENDAR_ID,
-        timeMin=f"{hoy}T00:00:00-03:00",
-        timeMax=f"{hoy}T23:59:59-03:00",
-        singleEvents=True,
-        orderBy='startTime'
-    ).execute()
-
-    lista = []
-    for e in resultado.get('items', []):
-        hora = e.get('start', {}).get('dateTime', '')
-        lista.append({
-            'titulo': e.get('summary', 'Sin titulo'),
-            'hora': hora[11:16] if hora else '--:--'
-        })
-    return jsonify({'eventos': lista})
 
 
 # ---------- Archivos de la interfaz ----------
@@ -230,7 +211,6 @@ def robots():
         "Allow: /\n"
         "Disallow: /audio\n"
         "Disallow: /transcribir\n"
-        "Disallow: /eventos\n"
         f"Sitemap: {base}/sitemap.xml\n"
     )
     return app.response_class(texto, mimetype='text/plain')

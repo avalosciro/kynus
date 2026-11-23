@@ -98,7 +98,7 @@ const PASOS = [
   { lugar:"lista", el:'.seccion[data-sec="fijadas"]', titulo:"Fijadas",
     texto:"Lo que fijás queda siempre arriba. Con los ··· de cada sección cambiás el orden: recientes, antiguas o de la A a la Z." },
   { lugar:"lista", el:"#btnGrabar", titulo:"El botón rosa",
-    texto:"Tocalo y decí algo como «dentista el jueves a las 5». Kynus lo entiende y lo agenda solo en tu Google Calendar." },
+    texto:"Tocalo y decí algo como «dentista el jueves a las 5». Kynus lo entiende y lo pasa a tu Google Calendar: con un toque, o solo si conectás tu cuenta en el menú ··· del panel." },
   { lugar:"lista", el:"#btnSync", titulo:"Tu llavero",
     texto:"Manda los eventos de hoy al llavero por Bluetooth y la pantallita te los muestra. Anda en Chrome, en Android o en la compu." },
   { lugar:"nota", el:".ed-meta", titulo:"Adentro de una nota",

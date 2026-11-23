@@ -10,7 +10,7 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 12;
+const VERSION = 13;
 const LIMITE = 35000;                    // caracteres por nota
 const esMovil = () => document.documentElement.classList.contains("movil");
 const sinMovimiento = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1062,22 +1062,217 @@ function dictar(boton){
 }
 $("tbDictar").onclick = () => dictar($("tbDictar"));
 
-/* ---------- Botón central: grabar y agendar en Google Calendar ---------- */
+/* ============================================================
+   GOOGLE CALENDAR DE CADA USUARIO
+   - Conectado: el celular agenda y lee los eventos en SU calendario,
+     con su permiso (Google Identity Services, sin contraseñas acá).
+   - Sin conectar: tarjeta con el botón "Agregar a Google Calendar",
+     que abre Calendar con el evento cargado para confirmarlo.
+   En los dos casos el evento queda guardado en Kynus, así el llavero
+   lo muestra ese día aunque no haya Google.
+   El servidor nunca toca ningún calendario: sólo entiende el audio.
+   ============================================================ */
+// ID de cliente OAuth (Google Cloud → Credenciales). No es secreto: va en el código.
+const GOOGLE_CLIENT_ID = "751679410322-fgej7os1kmb4kbi7uoc0cic3v26nesrk.apps.googleusercontent.com";
+const PERMISO_CALENDARIO = "https://www.googleapis.com/auth/calendar.events";
+const API_CALENDAR = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+
+let tokenGoogle = null, venceToken = 0, clienteToken = null, cargaGIS = null;
+try{
+  const t = JSON.parse(sessionStorage.getItem("llavero_google_token") || "null");
+  if (t && t.vence > Date.now()){ tokenGoogle = t.token; venceToken = t.vence; }
+}catch{}
+
+const googleDisponible = () => !!GOOGLE_CLIENT_ID;
+const googleConectado  = () => googleDisponible() && !!leer("llavero_google");
+const tokenValido      = () => !!tokenGoogle && Date.now() < venceToken;
+const dos = n => String(n).padStart(2, "0");
+const fechaLocal = d => `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`;
+const zonaHoraria = () => { try{ return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Argentina/Buenos_Aires"; }catch{ return "America/Argentina/Buenos_Aires"; } };
+
+function cargarGIS(){
+  if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+  return cargaGIS || (cargaGIS = new Promise((ok, mal) => {
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true;
+    s.onload = () => ok();
+    s.onerror = () => { cargaGIS = null; mal(new Error("sin_conexion")); };
+    document.head.appendChild(s);
+  }));
+}
+
+// Pide el permiso a Google. Tiene que arrancar dentro de un toque del usuario (abre una ventanita).
+function pedirToken(){
+  return cargarGIS().then(() => new Promise((ok, mal) => {
+    if (!clienteToken){
+      clienteToken = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: `${PERMISO_CALENDARIO} openid email`,
+        callback: () => {},
+      });
+    }
+    clienteToken.callback = r => {
+      if (r.error) return mal(new Error(r.error));
+      if (!google.accounts.oauth2.hasGrantedAllScopes(r, PERMISO_CALENDARIO)) return mal(new Error("falta_permiso"));
+      tokenGoogle = r.access_token;
+      venceToken = Date.now() + (Number(r.expires_in || 3600) - 120) * 1000;
+      try{ sessionStorage.setItem("llavero_google_token", JSON.stringify({ token:tokenGoogle, vence:venceToken })); }catch{}
+      ok(tokenGoogle);
+    };
+    clienteToken.error_callback = e => mal(new Error(e && e.type ? e.type : "desconocido"));
+    const mail = leer("llavero_google");
+    clienteToken.requestAccessToken({ prompt:"", ...(mail && mail.includes("@") ? { login_hint:mail } : {}) });
+  }));
+}
+const obtenerToken = () => tokenValido() ? Promise.resolve(tokenGoogle) : pedirToken();
+
+function olvidarToken(){
+  tokenGoogle = null; venceToken = 0;
+  try{ sessionStorage.removeItem("llavero_google_token"); }catch{}
+}
+
+function mensajeGoogle(e){
+  const m = e && e.message;
+  if (m === "popup_failed_to_open") return "El navegador bloqueó la ventana de Google. Permití las ventanas emergentes para Kynus y probá de nuevo.";
+  if (m === "popup_closed" || m === "access_denied") return "Se canceló el permiso de Google.";
+  if (m === "falta_permiso") return "Para agendar, tildá el permiso de Google Calendar cuando Google te lo pregunte.";
+  if (m === "vencido") return "Se venció el permiso de Google. Tocá de nuevo para renovarlo.";
+  if (m === "sin_conexion") return "No se pudo cargar Google. Revisá la conexión.";
+  return "No se pudo hablar con Google Calendar.";
+}
+
+async function conectarGoogle(){
+  if (!googleDisponible()){ avisar("La conexión con Google todavía no está configurada", "error"); return false; }
+  try{
+    avisar("Abriendo Google…", "", 0);
+    const token = await pedirToken();
+    let mail = "";
+    try{
+      const r = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", { headers:{ Authorization:`Bearer ${token}` } });
+      if (r.ok) mail = (await r.json()).email || "";
+    }catch{}
+    escribir("llavero_google", mail || "conectado");
+    avisar(mail ? `Conectado como ${mail}. Lo que grabes va a tu calendario.` : "Google Calendar conectado", "ok", 5000);
+    animo("feliz", 2000);
+    return true;
+  }catch(e){
+    avisar(mensajeGoogle(e), "error", 5000);
+    return false;
+  }
+}
+
+function desconectarGoogle(){
+  if (tokenGoogle && window.google && google.accounts) try{ google.accounts.oauth2.revoke(tokenGoogle, () => {}); }catch{}
+  olvidarToken();
+  try{ localStorage.removeItem("llavero_google"); }catch{}
+  avisar("Google desconectado. Los eventos se agregan con un toque.", "ok", 4000);
+}
+
+/* ---------- Eventos guardados en Kynus (para el llavero, con o sin Google) ---------- */
+function eventosGuardados(){
+  try{ return JSON.parse(leer("llavero_eventos") || "[]"); }catch{ return []; }
+}
+function guardarEvento(ev){
+  const hace7dias = fechaLocal(new Date(Date.now() - 7 * 864e5));
+  const lista = eventosGuardados().filter(e => e.fecha >= hace7dias).slice(-80);
+  lista.push({ titulo:ev.titulo, fecha:ev.fecha, hora:ev.hora });
+  escribir("llavero_eventos", JSON.stringify(lista));
+}
+function eventosGuardadosDeHoy(){
+  const hoy = fechaLocal(new Date());
+  return eventosGuardados().filter(e => e.fecha === hoy)
+    .sort((a, b) => a.hora.localeCompare(b.hora))
+    .map(e => ({ hora:e.hora, titulo:e.titulo }));
+}
+
+/* ---------- Agendar ---------- */
+function finDelEvento(ev, minutos = 60){
+  const d = new Date(`${ev.fecha}T${ev.hora}:00`);
+  d.setMinutes(d.getMinutes() + minutos);
+  return { fecha:fechaLocal(d), hora:`${dos(d.getHours())}:${dos(d.getMinutes())}` };
+}
+
+async function agendarEnGoogle(ev){
+  const token = await obtenerToken();
+  const fin = finDelEvento(ev), zona = zonaHoraria();
+  const res = await fetch(API_CALENDAR, {
+    method:"POST",
+    headers:{ Authorization:`Bearer ${token}`, "Content-Type":"application/json" },
+    body:JSON.stringify({
+      summary: ev.titulo,
+      description: "Agendado con Kynus ✦",
+      start:{ dateTime:`${ev.fecha}T${ev.hora}:00`, timeZone:zona },
+      end:  { dateTime:`${fin.fecha}T${fin.hora}:00`, timeZone:zona },
+    }),
+  });
+  if (res.status === 401){ olvidarToken(); throw new Error("vencido"); }
+  if (!res.ok) throw new Error("google_rechazo");
+}
+
+// Opción sin cuenta conectada: abre Google Calendar con el evento listo para guardar
+function enlaceCalendar(ev){
+  const fin = finDelEvento(ev);
+  const f = (fecha, hora) => `${fecha.replace(/-/g, "")}T${hora.replace(":", "")}00`;
+  const p = new URLSearchParams({
+    action:"TEMPLATE", text:ev.titulo, details:"Agendado con Kynus ✦",
+    dates:`${f(ev.fecha, ev.hora)}/${f(fin.fecha, fin.hora)}`, ctz:zonaHoraria(),
+  });
+  return `https://calendar.google.com/calendar/render?${p}`;
+}
+
+const cuandoEs = ev => `${new Date(ev.fecha + "T12:00").toLocaleDateString("es-AR", { weekday:"long", day:"numeric", month:"long" })} · ${ev.hora}`;
+
+function ofrecerAgregar(ev, motivo = ""){
+  $("aviso").className = "aviso";
+  abrirModal("agendar.exe", `
+    ${motivo ? `<p class="modal-nota">${escapar(motivo)}</p>` : ""}
+    <div class="evento-tarjeta">
+      <span class="evento-cuando">${escapar(cuandoEs(ev))}</span>
+      <b>${escapar(ev.titulo)}</b>
+    </div>
+    <a class="btn-acento evento-agregar" id="lnkCalendar" href="${escapar(enlaceCalendar(ev))}" target="_blank" rel="noopener">Agregar a Google Calendar</a>
+    ${googleDisponible() && !googleConectado() ? `<button class="btn-sec" id="btnConectarGoogle" type="button">Conectar mi Google para que se agende solo</button>` : ""}
+    <p class="modal-chico">Ya quedó guardado en Kynus: el llavero te lo muestra ese día.</p>`);
+  $("lnkCalendar").onclick = () => setTimeout(cerrarModal, 400);
+  const btn = $("btnConectarGoogle");
+  if (btn) btn.onclick = async () => {
+    btn.disabled = true;
+    if (await conectarGoogle()){
+      try{ await agendarEnGoogle(ev); cerrarModal(); avisar(`Agendado: ${ev.titulo} · ${cuandoEs(ev)}`, "ok", 4500); }
+      catch(e){ btn.disabled = false; avisar(mensajeGoogle(e), "error", 4500); }
+    } else btn.disabled = false;
+  };
+}
+
+/* ---------- Botón central: grabar → entender → agendar ---------- */
 $("btnGrabar").onclick = () => grabar($("btnGrabar"), async blob => {
   const btn = $("btnGrabar");
   btn.classList.add("ocupado");
-  avisar("Agendando en el calendario…", "", 0);
+  // El permiso de Google se pide YA, mientras dura el toque (si no, el navegador bloquea la ventanita)
+  const permiso = googleConectado() ? obtenerToken().then(() => null, e => e) : null;
+  avisar("Entendiendo lo que dijiste…", "", 0);
   const fd = new FormData();
   fd.append("audio", blob, "audio." + extension(blob.type));
+  fd.append("hoy", fechaLocal(new Date()));
   try{
     const res  = await fetch(`${BACKEND}/audio`, { method:"POST", body:fd });
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error);
-    const cuando = data.fecha ? ` · ${new Date(data.fecha + "T12:00").toLocaleDateString("es-AR", { weekday:"short", day:"numeric", month:"short" })} ${data.hora || ""}` : "";
-    avisar(`Agendado: ${data.evento}${cuando}`, "ok", 4500);
+    const ev = { titulo:data.evento, fecha:data.fecha, hora:data.hora || "09:00" };
+    guardarEvento(ev);
+
+    if (!permiso){ ofrecerAgregar(ev); return; }
+    const error = await permiso;
+    if (error){ ofrecerAgregar(ev, mensajeGoogle(error)); return; }
+    avisar("Agendando en tu calendario…", "", 0);
+    try{ await agendarEnGoogle(ev); }
+    catch(e){ ofrecerAgregar(ev, mensajeGoogle(e)); return; }
+    avisar(`Agendado: ${ev.titulo} · ${cuandoEs(ev)}`, "ok", 4500);
     animo("feliz", 2000);
   }catch(e){
-    avisar(e && e.message ? e.message : "No se pudo agendar. Probá de nuevo.", "error", 4000);
+    avisar(e instanceof TypeError ? "No hay conexión con el servidor. Probá de nuevo en un ratito."
+         : e && e.message ? e.message : "No se pudo entender el audio. Probá de nuevo.", "error", 4500);
   }finally{
     btn.classList.remove("ocupado");
   }
@@ -1094,11 +1289,50 @@ const espejo = new MutationObserver(() => {
 /* ============================================================
    SINCRONIZAR CON EL LLAVERO (BLE)
    ============================================================ */
+// Eventos de hoy: de tu Google Calendar si está conectado; si no, los que grabaste en Kynus
+async function eventosDeHoy(){
+  if (googleConectado() && tokenValido()){
+    const ini = new Date(); ini.setHours(0, 0, 0, 0);
+    const fin = new Date(ini); fin.setDate(fin.getDate() + 1);
+    const p = new URLSearchParams({ timeMin:ini.toISOString(), timeMax:fin.toISOString(), singleEvents:"true", orderBy:"startTime", maxResults:"20" });
+    try{
+      const res = await fetch(`${API_CALENDAR}?${p}`, { headers:{ Authorization:`Bearer ${tokenGoogle}` } });
+      if (res.status === 401) olvidarToken();
+      if (res.ok){
+        const data = await res.json();
+        return { desde:"google", eventos:(data.items || []).map(e => {
+          const dt = e.start && e.start.dateTime;
+          const d = dt ? new Date(dt) : null;
+          return { hora: d ? `${dos(d.getHours())}:${dos(d.getMinutes())}` : "--:--", titulo: (e.summary || "Sin título").trim() };
+        }) };
+      }
+    }catch{}
+  }
+  return { desde:"kynus", eventos:eventosGuardadosDeHoy() };
+}
+
 async function sincronizar(){
   if (!navigator.bluetooth){
     avisar("Este navegador no soporta Bluetooth. Usá Chrome en Android o PC (en iPhone no se puede).", "error", 4500);
     return;
   }
+  // Si el permiso de Google se venció, este toque se usa para renovarlo y el siguiente para buscar el llavero
+  // (el navegador deja abrir una sola ventanita por toque).
+  if (googleConectado() && !tokenValido()){
+    let aviso = "Listo, ya puedo leer tu calendario.";
+    try{ avisar("Pidiendo permiso a Google…", "", 0); await obtenerToken(); }
+    catch(e){ aviso = `${mensajeGoogle(e)} Mando los eventos que grabaste en Kynus.`; }
+    $("aviso").className = "aviso";
+    abrirModal("llavero.exe", `
+      <p>${escapar(aviso)}</p>
+      <button class="btn-acento evento-agregar" id="btnBuscarLlavero" type="button">Buscar el llavero</button>`);
+    $("btnBuscarLlavero").onclick = () => { cerrarModal(); mandarAlLlavero(); };
+    return;
+  }
+  mandarAlLlavero();
+}
+
+async function mandarAlLlavero(){
   const btn = $("btnSync");
   btn.classList.remove("listo");
   btn.classList.add("ocupado");
@@ -1113,10 +1347,9 @@ async function sincronizar(){
     const car     = await service.getCharacteristic(CHAR_UUID);
 
     avisar("Buscando los eventos de hoy…", "", 0);
-    const res  = await fetch(`${BACKEND}/eventos`);
-    const data = await res.json();
-    const evs  = data.eventos || [];
-    const mensaje = evs.length ? evs.map(e => `${e.hora} ${e.titulo}`).join("|") + "|" : "Sin eventos hoy";
+    const { eventos:evs } = await eventosDeHoy();
+    // El llavero separa con "|": que ningún título lo tenga
+    const mensaje = evs.length ? evs.slice(0, 10).map(e => `${e.hora} ${e.titulo.replace(/\|/g, "/")}`).join("|") + "|" : "Sin eventos hoy";
 
     const bytes = new TextEncoder().encode(mensaje);
     for (let i = 0; i < bytes.length; i += 20){
@@ -1684,6 +1917,11 @@ function iniciarTutorial(){
 $("btnMenu").onclick = e => abrirMenu(e.currentTarget, [
   { txt:"Ver el tutorial ✦",             fn: iniciarTutorial },
   { txt:"Sincronizar llavero",           fn: sincronizar },
+  ...(googleDisponible() ? [
+    googleConectado()
+      ? { txt:`Desconectar Google (${(leer("llavero_google") || "").replace("conectado", "tu cuenta")})`, fn: desconectarGoogle }
+      : { txt:"Conectar Google Calendar",  fn: conectarGoogle },
+  ] : []),
   "-",
   { txt:"Exportar todo (copia .json)",   fn: exportarTodo },
   { txt:"Importar copia",                fn: () => $("inpImportar").click() },
@@ -1768,3 +2006,5 @@ else {
   }
   setTimeout(() => { if (leer("llavero_nombre") === null) mostrarBienvenida(); }, 600);
 }
+// Con Google conectado, el script de Google se baja antes, así la ventanita del permiso abre al toque
+if (googleConectado()) setTimeout(() => cargarGIS().catch(() => {}), 1500);

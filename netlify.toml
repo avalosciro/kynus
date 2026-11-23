@@ -1,7 +1,8 @@
 # Netlify sirve TODO el sitio desde un solo dominio:
 #   /            → presentación
 #   /app         → la aplicación
-#   /audio, /transcribir, /eventos → el servidor (por ahora en Render; se reenvían sin que cambie la dirección)
+#   /audio, /transcribir → el servidor (por ahora en Render; se reenvían sin que cambie la dirección)
+#   El calendario NO pasa por el servidor: cada usuario agenda en el suyo desde el celular.
 #
 # El mismo repositorio sigue funcionando en Render sin tocar nada.
 
@@ -20,7 +21,7 @@
   to = "/app.html"
   status = 200
 
-# --- Servidor (Render). Para migrar el servidor a Netlify, estas tres reglas se reemplazan por funciones. ---
+# --- Servidor (Render). Para migrar el servidor a Netlify, estas dos reglas se reemplazan por funciones. ---
 [[redirects]]
   from = "/audio"
   to = "https://llavero-remil-nashe.onrender.com/audio"
@@ -30,11 +31,5 @@
 [[redirects]]
   from = "/transcribir"
   to = "https://llavero-remil-nashe.onrender.com/transcribir"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/eventos"
-  to = "https://llavero-remil-nashe.onrender.com/eventos"
   status = 200
   force = true

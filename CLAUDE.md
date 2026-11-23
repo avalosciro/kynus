@@ -13,27 +13,39 @@ pantallita OLED lo que tenés ese día. "Como un tamagochi, pero que sirve para 
 
 ```
 App web (celular, Chrome Android)
-  ├─ graba audio (MediaRecorder) ──POST /audio──▶ Backend Flask en Render
+  ├─ graba audio (MediaRecorder) ──POST /audio (+ fecha del celu)──▶ Backend Flask en Render
   │                                                 ├─ Groq Whisper (whisper-large-v3-turbo) → texto
-  │                                                 ├─ Groq LLM (openai/gpt-oss-20b) → evento JSON
-  │                                                 └─ Google Calendar API (cuenta de servicio) → inserta evento
-  └─ botón Sincronizar ──GET /eventos──▶ eventos de hoy
+  │                                                 └─ Groq LLM (openai/gpt-oss-20b) → evento JSON (no agenda)
+  ├─ agendar, en el calendario DE CADA USUARIO (desde el celular, app.js):
+  │     ├─ con Google conectado (Google Identity Services, permiso calendar.events) → Calendar API
+  │     └─ sin conectar → tarjeta con "Agregar a Google Calendar" (enlace calendar.google.com/…?action=TEMPLATE)
+  │     y siempre se guarda en localStorage `llavero_eventos` (el llavero lo muestra aunque no haya Google)
+  └─ botón Sincronizar → eventos de hoy (Google si está conectado; si no, los guardados en Kynus)
         └─ Web Bluetooth ──▶ ESP32-C3 del llavero ──▶ OLED
 ```
 
 ### Backend (`app.py`, Flask + gunicorn en Render, deploy automático desde GitHub)
-- Rutas: `/audio` (transcribe + extrae + agenda), `/transcribir`, `/eventos` (eventos de hoy),
+- Rutas: `/audio` (transcribe + extrae, NO agenda; recibe `hoy` = fecha del celular), `/transcribir`,
   `/app` (sirve `index.html`), `/styles.css`, `/movil.css`, `/app.js`, `/iconos/<archivo>`, `/manifest.webmanifest`,
   `/` (página de presentación, carpeta `presentacion/`), `/presentacion/<archivo>` (sólo .css y .js), `/estado` (texto de estado).
-- Variables de entorno en Render: `GROQ_API_KEY`, `GOOGLE_SERVICE_ACCOUNT` (JSON completo de la cuenta de servicio).
-- El calendario de Ciro está compartido con la cuenta de servicio; el `CALENDAR_ID` está en `app.py`.
+- El servidor no toca ningún calendario: no hay cuenta de servicio ni `CALENDAR_ID` (se sacaron en la v13).
+- Variable de entorno en Render: `GROQ_API_KEY` (`GOOGLE_SERVICE_ACCOUNT` ya no se usa).
 - Los archivos se sirven con ruta absoluta (`os.path.dirname(__file__)`), si no Render devuelve 0 bytes.
-- `requirements.txt`: flask, google-auth, google-auth-oauthlib, google-api-python-client, requests, gunicorn.
+- `requirements.txt`: flask, requests, gunicorn.
 - Render free se duerme a los 15 min: la primera petición tarda.
-- **Pendiente de seguridad:** `/audio` y `/eventos` no tienen ninguna protección.
+- **Pendiente de seguridad:** `/audio` y `/transcribir` no tienen ninguna protección (cualquiera puede gastar la cuota de Groq).
+
+### Google Calendar de cada usuario (app.js, sección "GOOGLE CALENDAR")
+- `GOOGLE_CLIENT_ID` en `app.js` (ID de cliente OAuth tipo "Aplicación web"; no es secreto). Vacío = sólo la opción
+  del enlace. Orígenes autorizados: el dominio de Netlify (y el de Render si se usa).
+- Pantalla de consentimiento en modo "Prueba": hasta 100 usuarios de prueba cargados a mano; sale el cartel
+  "app no verificada". Verificarla pide política de privacidad y dominio propio.
+- El token dura 1 h (sessionStorage `llavero_google_token`); la cuenta conectada en `llavero_google`.
+  La ventanita del permiso tiene que abrirse dentro de un toque: por eso se pide al terminar de grabar y,
+  en Sincronizar, un toque renueva el permiso y otro busca el llavero.
 - Nunca subir `credentials.json`, `token.pickle` ni claves (ya pasó una vez; están en `.gitignore`).
 
-### App web (`index.html`, `styles.css`, `movil.css`, `app.js`, `plantillas.js`) — versión 10
+### App web (`index.html`, `styles.css`, `movil.css`, `app.js`, `plantillas.js`, `tutorial.js`) — versión 13
 - Estética Y2K pastel (cielo con nubes, ventanas Win98). `movil.css` sólo se aplica en celulares (`html.movil`).
 - Panel con notas y tareas; abajo: Notas · grabar (→ Calendar) · Tareas · Llavero. Al editar, esa barra se cambia
   por la de la nota: deshacer/rehacer · QR · buscar · grabar · menú "···" · mostrar/ocultar herramientas.

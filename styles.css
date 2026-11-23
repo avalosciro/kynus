@@ -822,3 +822,15 @@ body.buscando .aviso{ bottom:calc(var(--nav-alto) + 104px + var(--inf)); }
     corner-shape:squircle;
   }
 }
+
+/* ---------- Agendar: tarjeta del evento (cuando no hay Google conectado) ---------- */
+.evento-tarjeta{
+  display:flex; flex-direction:column; gap:4px; padding:14px 16px; text-align:left;
+  background:var(--papel-2); border:var(--borde-fino); box-shadow:var(--sombra-chica);
+  border-radius:calc(var(--r-boton) * var(--sq));
+}
+.evento-cuando{ font-family:var(--pixel); font-size:8px; line-height:1.6; color:var(--texto-2); text-transform:uppercase; }
+.evento-tarjeta b{ font-family:var(--titulo); font-style:italic; font-weight:400; font-size:20px; line-height:1.15; }
+.evento-agregar{ justify-content:center; text-decoration:none; color:var(--tinta); }
+.modal-chico{ font-size:12.5px; color:var(--tenue); }
+@supports (corner-shape: squircle){ .evento-tarjeta{ corner-shape:squircle; } }
