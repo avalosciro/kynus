@@ -2,7 +2,7 @@
 #   /            → presentación
 #   /app         → la aplicación
 #   /guia        → guía para quienes prueban Kynus
-#   /audio, /transcribir, /estado → el servidor (por ahora en Render; se reenvían sin que cambie la dirección)
+#   /audio, /transcribir → el servidor (por ahora en Render; se reenvían sin que cambie la dirección)
 #   El calendario NO pasa por el servidor: cada usuario agenda en el suyo desde el celular.
 #
 # El mismo repositorio sigue funcionando en Render sin tocar nada.
@@ -31,12 +31,6 @@
 [[redirects]]
   from = "/audio"
   to = "https://llavero-remil-nashe.onrender.com/audio"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/estado"
-  to = "https://llavero-remil-nashe.onrender.com/estado"
   status = 200
   force = true
 

@@ -10,7 +10,7 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 18;
+const VERSION = 19;
 const LIMITE = 35000;                    // caracteres por nota
 const esMovil = () => document.documentElement.classList.contains("movil");
 const sinMovimiento = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1048,7 +1048,9 @@ let ultimoDespertador = 0;
 function despertarServidor(){
   if (Date.now() - ultimoDespertador < 5 * 60 * 1000) return;
   ultimoDespertador = Date.now();
-  fetch(`${BACKEND}/estado`, { cache:"no-store" }).catch(() => {});
+  // Un GET a /audio pasa por el mismo camino que las grabaciones (Netlify → Render) y despierta al
+  // servidor; responde "método no permitido" sin tocar Groq ni contar para los límites.
+  fetch(`${BACKEND}/audio`, { cache:"no-store" }).catch(() => {});
 }
 
 async function pedirServidor(ruta, fd){

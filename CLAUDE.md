@@ -27,14 +27,14 @@ App web (celular, Chrome Android)
 ### Backend (`app.py`, Flask + gunicorn en Render, deploy automático desde GitHub)
 - Rutas: `/audio` (transcribe + extrae, NO agenda; recibe `hoy` = fecha del celular), `/transcribir`,
   `/app` (sirve `index.html`), `/styles.css`, `/movil.css`, `/app.js`, `/iconos/<archivo>`, `/manifest.webmanifest`,
-  `/` (página de presentación, carpeta `presentacion/`), `/presentacion/<archivo>` (sólo .css y .js), `/estado` (texto de estado; la app lo llama para despertar
-  el servidor), `/guia` (guía para quienes prueban Kynus, carpeta `guia/`). Los logs no guardan lo que dice cada usuario.
+  `/` (página de presentación, carpeta `presentacion/`), `/presentacion/<archivo>` (sólo .css y .js), `/estado` (texto de estado), `/guia` (guía para quienes prueban Kynus, carpeta `guia/`). Los logs no guardan lo que dice cada usuario.
 - El servidor no toca ningún calendario: no hay cuenta de servicio ni `CALENDAR_ID` (se sacaron en la v13).
 - Variable de entorno en Render: `GROQ_API_KEY` (`GOOGLE_SERVICE_ACCOUNT` ya no se usa).
 - Los archivos se sirven con ruta absoluta (`os.path.dirname(__file__)`), si no Render devuelve 0 bytes.
 - `requirements.txt`: flask, requests, gunicorn.
 - Render free se duerme a los 15 min: la primera petición tarda hasta ~1 min. La app lo despierta al abrirse y al
-  empezar a grabar (`despertarServidor`, por Netlify `/estado`) y si Netlify devuelve 502/503/504 avisa
+  empezar a grabar (`despertarServidor`: un GET a `/audio`, que pasa por Netlify, despierta a Render y responde 405 sin
+  gastar cuota; la regla de Netlify para `/estado` no funcionó) y si Netlify devuelve 502/503/504 avisa
   "Despertando el servidor…" y reintenta hasta 80 s (`pedirServidor`). Opcional: un monitor gratis (UptimeRobot)
   que pida `/estado` cada 10 min lo mantiene despierto.
 - Cuota de Groq (v17): `/audio` y `/transcribir` siguen abiertos pero con límites en memoria (`app.py`):
