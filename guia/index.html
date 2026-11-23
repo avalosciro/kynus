@@ -136,7 +136,7 @@
     <div class="cuerpo">
       <h2 id="t-instalar">Instalá la app</h2>
       <ol>
-        <li>Abrí <a href="/app"><b>kynus.netlify.app/app</b></a> en Chrome.</li>
+        <li>Abrí <a href="/app"><b id="dirApp">esta misma página, en /app</b></a> en Chrome.</li>
         <li>Tocá los tres puntitos <span class="boton">⋮</span> de arriba a la derecha.</li>
         <li>Elegí <span class="boton">Agregar a la pantalla principal</span> y después <span class="boton">Instalar</span>.</li>
       </ol>
@@ -273,5 +273,9 @@
     <p class="tenue">Kynus · proyecto de 5°C, Instituto Técnico El Obraje</p>
   </footer>
 </main>
+<script>
+  // Muestra la dirección real de la app (sirve igual si la página se muda de dominio)
+  document.getElementById("dirApp").textContent = location.host + "/app";
+</script>
 </body>
 </html>

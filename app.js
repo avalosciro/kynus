@@ -7,10 +7,13 @@
    casillas dentro de las notas y los ojitos de Kynus.
    ============================================================ */
 
-const BACKEND = window.location.origin;
+// El servidor está en Render. La app (en Cloudflare Pages) le habla directo; si se abre desde
+// Render o desde la compu para probar, usa la misma dirección.
+const SERVIDOR = "https://llavero-remil-nashe.onrender.com";
+const BACKEND = /onrender\.com$|^localhost$|^127\.0\.0\.1$/.test(location.hostname) ? location.origin : SERVIDOR;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 19;
+const VERSION = 20;
 const LIMITE = 35000;                    // caracteres por nota
 const esMovil = () => document.documentElement.classList.contains("movil");
 const sinMovimiento = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1048,9 +1051,9 @@ let ultimoDespertador = 0;
 function despertarServidor(){
   if (Date.now() - ultimoDespertador < 5 * 60 * 1000) return;
   ultimoDespertador = Date.now();
-  // Un GET a /audio pasa por el mismo camino que las grabaciones (Netlify → Render) y despierta al
+  // Un GET a /audio va por el mismo camino que las grabaciones y despierta al
   // servidor; responde "método no permitido" sin tocar Groq ni contar para los límites.
-  fetch(`${BACKEND}/audio`, { cache:"no-store" }).catch(() => {});
+  fetch(`${BACKEND}/audio`, { cache:"no-store", mode:"no-cors" }).catch(() => {});
 }
 
 async function pedirServidor(ruta, fd){

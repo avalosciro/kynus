@@ -44,6 +44,14 @@ App web (celular, Chrome Android)
   dictado al minuto (`MAX_GRABACION`); los audios guardados en notas no van al servidor y no tienen límite.
   Plan gratis de Groq: no cobra, sólo se agota la cuota. Opción más fuerte para después: exigir login de Google.
 
+### Hosting (v20): Cloudflare Pages
+- Netlify se quedó sin créditos (cada publicación gasta; plan gratis ~300/mes): la app y la presentación se mudan a
+  Cloudflare Pages (sin créditos, 500 publicaciones/mes). Compilación: `bash armar_sitio.sh`, salida `dist`.
+- La app le habla directo a Render (`SERVIDOR` en `app.js`); el servidor da permiso CORS a `*kynus*.pages.dev`,
+  `kynus.netlify.app` y localhost (`permitir_la_app` en `app.py`). La IP para los límites sale de X-Forwarded-For.
+- Al cambiar de dirección: agregar el origen nuevo en Google Cloud (Clients → Orígenes de JavaScript), reinstalar
+  la app y pasar las notas con Exportar todo / Importar copia. Subir menos seguido (cada push = una publicación).
+
 ### Google Calendar de cada usuario (app.js, sección "GOOGLE CALENDAR")
 - `GOOGLE_CLIENT_ID` en `app.js` (ID de cliente OAuth tipo "Aplicación web"; no es secreto). Vacío = sólo la opción
   del enlace. Orígenes autorizados: el dominio de Netlify (y el de Render si se usa).

@@ -9,7 +9,7 @@
 
 [build]
   # Se arma una carpeta "dist" sólo con lo que es público (sin app.py, zips, claves, etc.)
-  command = "mkdir -p dist && cp -r presentacion iconos guia dist/ && cp styles.css movil.css app.js plantillas.js tutorial.js manifest.webmanifest dist/ && cp index.html dist/app.html && cp iconos/favicon-32.png dist/favicon.ico"
+  command = "bash armar_sitio.sh"
   publish = "dist"
 
 [[redirects]]

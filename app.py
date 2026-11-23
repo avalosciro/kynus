@@ -42,7 +42,7 @@ _hoy = {"dia": None, "total": 0}
 
 
 def ip_del_pedido():
-    """La IP de quien graba: Netlify la pasa en su encabezado; si no, la primera de X-Forwarded-For."""
+    """La IP de quien graba: la primera de X-Forwarded-For (Render); si vino por Netlify, su encabezado."""
     ip = request.headers.get("X-Nf-Client-Connection-Ip")
     if not ip:
         ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "?").split(",")[0]
@@ -97,6 +97,23 @@ def revisar_pedido():
         print(f"Límite: {ip_del_pedido()} → {mensaje}")
         return jsonify({'error': mensaje}), 429
     return None
+
+
+# ---------- La app vive en otra dirección (Cloudflare Pages) y le habla directo al servidor ----------
+# Sólo esas direcciones pueden leer las respuestas de /audio y /transcribir desde el navegador.
+ORIGENES = {"https://kynus.netlify.app"}
+ORIGEN_PAGES = re.compile(r"https://([a-z0-9-]+\.)?kynus[a-z0-9-]*\.pages\.dev")
+ORIGEN_LOCAL = re.compile(r"http://(localhost|127\.0\.0\.1)(:\d+)?")
+
+
+@app.after_request
+def permitir_la_app(resp):
+    origen = request.headers.get("Origin", "")
+    if request.path in ("/audio", "/transcribir") and (
+            origen in ORIGENES or ORIGEN_PAGES.fullmatch(origen) or ORIGEN_LOCAL.fullmatch(origen)):
+        resp.headers["Access-Control-Allow-Origin"] = origen
+        resp.headers["Vary"] = "Origin"
+    return resp
 
 
 @app.errorhandler(413)
