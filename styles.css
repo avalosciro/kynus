@@ -724,21 +724,31 @@ body.buscando .aviso{ bottom:calc(var(--nav-alto) + 104px + var(--inf)); }
 /* ============================================================
    TUTORIAL (primera vez)
    ============================================================ */
+/* Los movimientos (foco, ventana, textos) los anima tutorial.js con curvas de resorte;
+   acá sólo hay lo que se repite: el latido del foco y las rayitas de la barra. */
 .tuto-capa{ position:fixed; inset:0; z-index:400; }
 .tuto-foco{
-  position:fixed; z-index:401; pointer-events:none;
+  position:fixed; z-index:401; left:0; top:0; pointer-events:none;
   border:3px solid var(--rosa); border-radius:12px;
   box-shadow:0 0 0 4px #fff, 0 0 18px 6px rgba(244,154,214,.8), 0 0 0 9999px rgba(23,22,31,.58);
-  transition:left .38s cubic-bezier(.2,.8,.2,1), top .38s cubic-bezier(.2,.8,.2,1), width .38s cubic-bezier(.2,.8,.2,1), height .38s cubic-bezier(.2,.8,.2,1);
 }
+.tuto-foco::after{
+  content:""; position:absolute; inset:-3px; pointer-events:none;
+  border:2px solid #fff; border-radius:inherit; corner-shape:inherit; opacity:0;
+  animation:tuto-latido 1.9s cubic-bezier(.2,.7,.3,1) .6s infinite;
+}
+@keyframes tuto-latido{ 0%{ inset:-3px; opacity:.95; } 100%{ inset:-18px; opacity:0; } }
 .tuto-foco.centro{ border-color:transparent; box-shadow:0 0 0 9999px rgba(23,22,31,.58); }
+.tuto-foco.centro::after{ display:none; }
 .tuto-ventana{
-  position:fixed; z-index:402; width:min(360px, calc(100vw - 24px));
+  position:fixed; z-index:402; left:0; top:0; width:min(360px, calc(100vw - 24px));
   background:var(--papel); border:var(--borde); box-shadow:var(--sombra-ventana);
-  transition:left .38s cubic-bezier(.2,.8,.2,1), top .38s cubic-bezier(.2,.8,.2,1), opacity .2s;
+  overflow:hidden; will-change:transform;
 }
-.tuto-ventana.cambiando{ opacity:.35; }
 .tuto-ventana.grande{ width:min(430px, calc(100vw - 24px)); }
+.tuto-ventana button{ transition:scale .35s cubic-bezier(.34,1.56,.64,1), translate .1s, box-shadow .1s, background .15s; }
+.tuto-ventana button:active{ scale:.95; }
+.tuto-ojos i{ transition:transform .55s cubic-bezier(.34,1.56,.64,1), clip-path .25s, background .2s; }
 .tuto-barra{ display:flex; justify-content:space-between; align-items:center; padding:8px 12px 8px 14px; background:var(--rosa-claro); border-bottom:var(--borde); font-weight:800; font-size:14px; }
 .tuto-barra span:first-child::before{ content:"✦ "; }
 .tuto-cuenta{ font-family:var(--pixel); font-size:9px; }
@@ -753,8 +763,14 @@ body.buscando .aviso{ bottom:calc(var(--nav-alto) + 104px + var(--inf)); }
 #tutoTexto{ font-size:14.5px; line-height:1.5; color:var(--texto-2); font-weight:500; }
 .tuto-nombre{ display:flex; flex-direction:column; gap:6px; font-size:13px; font-weight:700; }
 .tuto-nombre input{ padding:11px 13px; font-size:16px; background:var(--papel); border:var(--borde-fino); box-shadow:var(--sombra-chica); }
-.tuto-progreso{ height:10px; background:var(--papel); border:var(--borde-fino); overflow:hidden; }
-.tuto-progreso i{ display:block; height:100%; width:0; background:repeating-linear-gradient(90deg, var(--rosa) 0 10px, var(--lila) 10px 20px); transition:width .35s; }
+.tuto-progreso{ height:10px; background:var(--papel); border:var(--borde-fino); border-radius:999px; overflow:hidden; }
+.tuto-progreso i{
+  display:block; height:100%; width:0; border-radius:999px;
+  background:repeating-linear-gradient(90deg, var(--rosa) 0 10px, var(--lila) 10px 20px);
+  transition:width .7s cubic-bezier(.34,1.4,.5,1);
+  animation:tuto-rayas .8s linear infinite;
+}
+@keyframes tuto-rayas{ to{ background-position:20px 0; } }
 .tuto-botones{ display:flex; align-items:center; gap:8px; }
 .tuto-saltear{ margin-right:auto; padding:6px 2px; font-size:13px; font-weight:700; color:var(--tenue); text-decoration:underline; text-underline-offset:3px; }
 .tuto-saltear:hover{ color:var(--tinta); }
@@ -763,4 +779,46 @@ body.buscando .aviso{ bottom:calc(var(--nav-alto) + 104px + var(--inf)); }
 
 @media (prefers-reduced-motion:reduce){
   *{ animation:none !important; transition:none !important; }
+}
+
+/* ============================================================
+   ESQUINAS ESTILO APPLE
+   Apple no redondea con un cuarto de círculo: usa esquinas "continuas"
+   (squircle), donde la curva empieza de a poco y no se nota el corte.
+   Donde el navegador lo soporta (corner-shape) se usa esa curva de verdad,
+   con el radio un poco más grande para que se vea igual que en iOS;
+   en el resto queda un redondeo común con los radios de iOS.
+   Las píldoras y los círculos (barra de abajo, grabar) quedan como están:
+   Apple también los usa así.
+   ============================================================ */
+:root{
+  --r-mini:   5px;   /* etiquetas y cuadritos */
+  --r-chico:  8px;   /* botones de 28–34 px y filas de menú */
+  --r-boton: 11px;   /* botones de 38–46 px y campos de texto */
+  --r-grande:14px;   /* botones principales grandes */
+  --sq: 1;           /* cuánto se agranda el radio con la curva squircle */
+}
+@supports (corner-shape: squircle){ :root{ --sq: 1.6; } }
+
+.icono.chico, .side-head .icono, .ed-head .icono, .toolbar button, .busca-nota button, .mr-atras,
+.modal-barra button, .diapo-barra button, .mr-ico, .menu button, .mr-item, .fila, .tab,
+.mr-efecto, .mr-muestra{
+  border-radius:calc(var(--r-chico) * var(--sq));
+}
+.icono, .btn-sec, .btn-crear, .buscar, .toolbar, .modal-nota,
+.tuto-nombre input, .bienvenida input[type=text]{
+  border-radius:calc(var(--r-boton) * var(--sq));
+}
+.btn-acento{ border-radius:calc(var(--r-grande) * var(--sq)); }
+/* Esquinas concéntricas: la caja de las pestañas = radio de la pestaña + su relleno */
+.tabs{ border-radius:calc(var(--r-chico) * var(--sq) + 6px); }
+.mr-tabla button, .mr-badge, .mr-muestra span{ border-radius:calc(var(--r-mini) * var(--sq)); }
+
+@supports (corner-shape: squircle){
+  :is(.icono, .btn-sec, .btn-crear, .btn-acento, .buscar, .toolbar, .toolbar button, .tabs, .tab,
+      .busca-nota button, .mr-atras, .modal-barra button, .diapo-barra button, .mr-ico, .menu button,
+      .mr-item, .fila, .mr-efecto, .mr-muestra, .mr-muestra span, .mr-tabla button, .mr-badge,
+      .modal-nota, .tuto-nombre input, .bienvenida input[type=text], .tuto-foco){
+    corner-shape:squircle;
+  }
 }

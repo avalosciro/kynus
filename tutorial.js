@@ -10,6 +10,30 @@ const espera = ms => new Promise(r => setTimeout(r, ms));
 const cuadro = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 const visible = el => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
 
+/* ---------- Movimiento: curvas de resorte ----------
+   Se calcula un resorte amortiguado y se pasa a una curva CSS linear(…),
+   así todo frena con un rebotecito chico en vez de pararse en seco.
+   Sólo se animan transform/opacity (y el tamaño de la ventanita, que es chica),
+   para que ande liviano en el celular. */
+function resorte(amortiguacion){
+  const w = 6.4 / amortiguacion, wd = w * Math.sqrt(1 - amortiguacion ** 2), k = amortiguacion * w / wd;
+  const puntos = [];
+  for (let i = 0; i <= 50; i++){
+    const t = i / 50;
+    puntos.push((1 - Math.exp(-amortiguacion * w * t) * (Math.cos(wd * t) + k * Math.sin(wd * t))).toFixed(3));
+  }
+  puntos[50] = "1";
+  return `linear(${puntos.join(", ")})`;
+}
+const soportaLinear = typeof CSS !== "undefined" && CSS.supports("animation-timing-function", "linear(0, 1)");
+const SUAVE  = soportaLinear ? resorte(0.74) : "cubic-bezier(.2,.9,.25,1.05)";   // para moverse
+const REBOTE = soportaLinear ? resorte(0.52) : "cubic-bezier(.34,1.56,.64,1)";   // para aparecer
+const SALIR  = "cubic-bezier(.4,0,1,1)";
+const quieto = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const ms = n => quieto() ? 0 : n;
+const termino = a => a ? a.finished.catch(() => {}) : Promise.resolve();
+const cortar = (el, id) => el.getAnimations().forEach(a => { if (!id || a.id === id) a.cancel(); });
+
 /* ---------- La nota de "primeros pasos" que se usa para mostrar el editor ---------- */
 const CUERPO_DEMO = `
 <p>¡Hola! Esta nota es tuya: escribí, tildá lo que vayas probando o borrala cuando quieras.</p>
@@ -102,6 +126,7 @@ const PASOS = [
 
 /* ---------- La interfaz del tutorial ---------- */
 let capa, foco, ventana, paso = 0, activo = false, objetivo = null, rafUbicar = 0;
+let turno = 0, tam = null, pos = { x:0, y:0 };   // turno: si tocás rápido, sólo vale el último paso
 
 function crearInterfaz(){
   capa = document.createElement("div");
@@ -132,6 +157,7 @@ function crearInterfaz(){
         <button class="btn-sec ancho tuto-siguiente" id="tutoSiguiente" type="button">Siguiente →</button>
       </div>
     </div>`;
+  ventana.style.opacity = "0";   // aparece con un saltito cuando ya está en su lugar
   document.body.append(capa, foco, ventana);
   $("tutoSiguiente").onclick = () => avanzar(1);
   $("tutoAtras").onclick = () => avanzar(-1);
@@ -151,23 +177,43 @@ async function avanzar(delta){
   if (p.pedirNombre && delta > 0) guardarNombre();
   if (paso + delta >= PASOS.length){ terminar(false); return; }
   if (paso + delta < 0) return;
-  await mostrar(paso + delta);
+  await mostrar(paso + delta, delta);
 }
 
-async function mostrar(n){
+// Las partes del contenido que cambian de un paso al otro (entran y salen deslizándose)
+const piezas = () => [ventana.querySelector(".tuto-cabeza"), $("tutoTexto"), $("tutoNombre")].filter(visible);
+
+async function mostrar(n, dir = 1){
+  const yo = ++turno;
   const anterior = PASOS[paso];
   if (anterior && anterior.despues && n !== paso) anterior.despues();
   paso = n;
   const p = PASOS[paso];
-  ventana.classList.add("cambiando");
-  await prepararLugar(p.lugar);
-  if (p.antes){ p.antes(); await espera(80); }
+  const primera = !ventana.dataset.lista;
+
+  // 1. Lo de antes se va para el costado (hacia atrás si avanzás, hacia adelante si volvés)
+  const salida = primera ? [] : piezas().map(el => {
+    cortar(el);
+    return el.animate([{ opacity:1, transform:"none" }, { opacity:0, transform:`translateX(${-dir * 16}px)` }],
+      { duration:ms(140), easing:SALIR, fill:"forwards" });
+  });
+  await Promise.all([prepararLugar(p.lugar), ...salida.map(termino)]);
+  if (yo !== turno || !activo) return;
+  if (p.antes){ p.antes(); await espera(80); if (yo !== turno || !activo) return; }
 
   const el = typeof p.el === "function" ? p.el() : p.el ? document.querySelector(p.el) : null;
   objetivo = visible(el) ? el : null;
   if (objetivo) objetivo.scrollIntoView({ block:"nearest", inline:"nearest" });
+  await cuadro();
+  if (yo !== turno || !activo) return;
 
-  // Texto de la ventanita
+  // 2. Tamaño de antes (tal cual se ve, aunque esté a mitad de una animación)
+  const antes = ventana.getBoundingClientRect();
+  cortar(ventana, "tam");
+  const cuerpo = ventana.querySelector(".tuto-cuerpo");
+  cuerpo.style.width = "";
+
+  // 3. Texto nuevo
   const titulo = typeof p.titulo === "function" ? p.titulo() : p.titulo;
   $("tutoTitulo").textContent = titulo;
   $("tutoTexto").textContent = p.texto;
@@ -183,33 +229,85 @@ async function mostrar(n){
   ojos.classList.toggle("grande", !!p.grande);
   ojos.classList.toggle("feliz", p.id === "fin");
 
-  await cuadro();
-  ubicar();
-  ventana.classList.remove("cambiando");
-  if (p.id === "fin"){
-    const r = ventana.getBoundingClientRect();
-    chispas(r.left + r.width / 2, r.top + 30, 16);
+  // 4. La ventanita cambia de tamaño suave (el contenido ya queda con el ancho final, así no "baila")
+  tam = { w: ventana.offsetWidth, h: ventana.offsetHeight };
+  salida.forEach(a => a.cancel());
+  if (!primera && (Math.abs(antes.width - tam.w) > 1 || Math.abs(antes.height - tam.h) > 1)){
+    cuerpo.style.width = tam.w - 6 + "px";
+    const a = ventana.animate([{ width:antes.width + "px", height:antes.height + "px" }, { width:tam.w + "px", height:tam.h + "px" }],
+      { duration:ms(560), easing:SUAVE });
+    a.id = "tam";
+    a.finished.then(() => { cuerpo.style.width = ""; }, () => {});
   }
+
+  // 5. Todo a su lugar: el foco viaja al botón y la ventanita lo sigue
+  ubicar(!primera);
+
+  // 6. Lo nuevo entra desde el otro costado, uno atrás del otro
+  piezas().forEach((el, i) => el.animate(
+    [{ opacity:0, transform:`translateX(${dir * 22}px)` }, { opacity:1, transform:"none" }],
+    { duration:ms(520), delay:ms(70 + i * 45), easing:SUAVE, fill:"backwards" }));
+  if (!primera) $("tutoCuenta").animate([{ opacity:0, transform:`translateY(${dir * -8}px)` }, { opacity:1, transform:"none" }],
+    { duration:ms(380), easing:REBOTE });
+
+  // 7. Los ojitos parpadean y miran el botón del que se habla
+  ojos.querySelectorAll("i").forEach(i => i.animate([{ scale:"1 1" }, { scale:"1 .1", offset:.45 }, { scale:"1 1" }],
+    { duration:ms(260), easing:"ease-in-out" }));
+  mirar();
+
+  if (primera){
+    ventana.dataset.lista = "1";
+    ventana.style.opacity = "";
+    ventana.animate([{ opacity:0, scale:.86 }, { opacity:1, scale:1 }], { duration:ms(620), easing:REBOTE });
+  }
+  if (p.id === "fin") setTimeout(() => {
+    if (!activo || !ventana) return;
+    const r = ventana.getBoundingClientRect();
+    chispas(r.left + r.width / 2, r.top + 30, 18);
+  }, ms(260));
   (p.pedirNombre ? $("tutoInpNombre") : $("tutoSiguiente")).focus({ preventScroll:true });
 }
 
+// Los ojitos de la ventanita miran hacia el botón iluminado
+function mirar(){
+  const ojos = ventana.querySelector(".tuto-ojos");
+  const max = ojos.classList.contains("grande") ? 10 : 3;
+  let ox = 0, oy = 0;
+  if (objetivo){
+    const r = objetivo.getBoundingClientRect();
+    const cx = pos.x + 3 + ojos.offsetLeft + ojos.offsetWidth / 2, cy = pos.y + 3 + ojos.offsetTop + ojos.offsetHeight / 2;
+    const dx = r.left + r.width / 2 - cx, dy = r.top + r.height / 2 - cy, d = Math.hypot(dx, dy) || 1;
+    ox = dx / d * max; oy = dy / d * max * 0.7;
+  }
+  ojos.style.setProperty("--ox", ox.toFixed(1) + "px");
+  ojos.style.setProperty("--oy", oy.toFixed(1) + "px");
+}
+
 // Pone el foco (el agujero iluminado) sobre el botón y la ventanita al lado, sin taparlo
-function ubicar(){
+function ubicar(animado = false){
   rafUbicar = 0;
   if (!activo) return;
   const W = innerWidth, H = innerHeight, m = 14;
-  const w = ventana.offsetWidth, h = ventana.offsetHeight;
-  let x, y;
+  // Si la ventanita está cambiando de tamaño, se ubica según el tamaño final
+  if (!animado && !ventana.getAnimations().some(a => a.id === "tam")) tam = { w: ventana.offsetWidth, h: ventana.offsetHeight };
+  const w = tam ? tam.w : ventana.offsetWidth, h = tam ? tam.h : ventana.offsetHeight;
+  const focoAntes = animado ? foco.getBoundingClientRect() : null;
+  const radioAntes = animado ? getComputedStyle(foco).borderTopLeftRadius : null;
+  let x, y, f;
   if (!objetivo || !visible(objetivo)){
     foco.classList.add("centro");
-    foco.style.left = W / 2 + "px"; foco.style.top = H / 2 + "px"; foco.style.width = foco.style.height = "0px";
+    f = { x: W / 2, y: H / 2, w: 0, h: 0, radio: "12px", forma: "round" };
     x = (W - w) / 2; y = (H - h) / 2;
   } else {
     const r = objetivo.getBoundingClientRect();
     const pad = objetivo.id === "menuRico" ? 3 : 7;
     foco.classList.remove("centro");
-    foco.style.left = r.left - pad + "px"; foco.style.top = r.top - pad + "px";
-    foco.style.width = r.width + pad * 2 + "px"; foco.style.height = r.height + pad * 2 + "px";
+    // El foco copia las esquinas del botón (más el margen), así quedan concéntricas
+    const radio = parseFloat(getComputedStyle(objetivo).borderTopLeftRadius) || 0;
+    const pildora = radio >= r.height / 2 - 1;
+    f = { x: r.left - pad, y: r.top - pad, w: r.width + pad * 2, h: r.height + pad * 2,
+          radio: pildora ? "999px" : (radio ? radio + pad : pad + 4) + "px",
+          forma: pildora || !radio ? "round" : "squircle" };
     if (esMovil()){
       x = (W - w) / 2;
       const abajo = r.bottom + m + 6, arriba = r.top - h - m - 6;
@@ -226,12 +324,39 @@ function ubicar(){
       x = elegida.x; y = elegida.y;
     }
   }
-  x = Math.max(10, Math.min(x, W - w - 10));
-  y = Math.max(10, Math.min(y, H - h - 10));
-  ventana.style.left = x + "px";
-  ventana.style.top = y + "px";
+  x = Math.round(Math.max(10, Math.min(x, W - w - 10)));
+  y = Math.round(Math.max(10, Math.min(y, H - h - 10)));
+
+  // Foco: viaja con resorte desde donde está ahora (aunque esté a mitad de camino)
+  cortar(foco, "mover");
+  Object.assign(foco.style, { left: f.x + "px", top: f.y + "px", width: f.w + "px", height: f.h + "px", borderRadius: f.radio });
+  foco.style.setProperty("corner-shape", f.forma);
+  if (focoAntes){
+    const a = foco.animate([
+      { left: focoAntes.left + "px", top: focoAntes.top + "px", width: focoAntes.width + "px", height: focoAntes.height + "px", borderRadius: radioAntes },
+      { left: f.x + "px", top: f.y + "px", width: f.w + "px", height: f.h + "px", borderRadius: f.radio },
+    ], { duration: ms(640), easing: SUAVE });
+    a.id = "mover";
+  }
+
+  // Ventanita: se mueve con transform (lo más liviano que hay)
+  const desde = animado ? ventana.getBoundingClientRect() : null;
+  cortar(ventana, "mover");
+  pos = { x, y };
+  ventana.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  if (desde && (Math.abs(desde.left - x) > 1 || Math.abs(desde.top - y) > 1)){
+    const a = ventana.animate([
+      { transform: `translate3d(${desde.left}px, ${desde.top}px, 0)` },
+      { transform: `translate3d(${x}px, ${y}px, 0)` },
+    ], { duration: ms(680), easing: SUAVE });
+    a.id = "mover";
+  }
 }
-const pedirUbicar = () => { if (!rafUbicar) rafUbicar = requestAnimationFrame(ubicar); };
+// Al desplazar o cambiar el tamaño: si el foco iba en camino, cambia de rumbo suave en vez de saltar
+const pedirUbicar = () => {
+  if (rafUbicar || !foco) return;
+  rafUbicar = requestAnimationFrame(() => ubicar(!!foco && foco.getAnimations().some(a => a.id === "mover")));
+};
 
 function teclas(e){
   if (!activo) return;
@@ -242,16 +367,26 @@ function teclas(e){
 }
 
 function terminar(salteado){
+  if (!activo) return;
   const p = PASOS[paso];
   if (p && p.despues) p.despues();
   if (p && p.pedirNombre) guardarNombre();
   activo = false;
+  turno++;
   escribir("llavero_tutorial", "visto");
   removeEventListener("resize", pedirUbicar);
   removeEventListener("keydown", teclas, true);
   document.removeEventListener("scroll", pedirUbicar, true);
-  [capa, foco, ventana].forEach(el => el && el.remove());
+  // La ventanita se achica y el oscuro se va; recién después se borran
+  const [c, f, v] = [capa, foco, ventana];
   capa = foco = ventana = null;
+  c.remove();
+  cortar(f, "mover"); cortar(v, "mover"); cortar(v, "tam");
+  const fin = [
+    v.animate([{ opacity:1, scale:1 }, { opacity:0, scale:.9 }], { duration:ms(190), easing:SALIR, fill:"forwards" }),
+    f.animate([{ opacity:1 }, { opacity:0 }], { duration:ms(280), easing:"ease-out", fill:"forwards" }),
+  ];
+  Promise.all(fin.map(termino)).then(() => { f.remove(); v.remove(); });
   document.body.classList.remove("tutorial");
   if (salteado) avisar("Cuando quieras, el tutorial está en el menú ··· del panel", "", 4000);
   else { animo("feliz", 2200); avisar("¡A organizar el día! ✦", "ok"); }
@@ -269,5 +404,7 @@ export async function empezar(){
   addEventListener("keydown", teclas, true);
   document.addEventListener("scroll", pedirUbicar, true);
   paso = 0;
+  tam = null;
+  foco.animate([{ opacity:0 }, { opacity:1 }], { duration:ms(320), easing:"ease-out" });
   await mostrar(0);
 }

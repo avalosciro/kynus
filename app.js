@@ -10,7 +10,7 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 11;
+const VERSION = 12;
 const LIMITE = 35000;                    // caracteres por nota
 const esMovil = () => document.documentElement.classList.contains("movil");
 const sinMovimiento = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
