@@ -27,12 +27,16 @@ App web (celular, Chrome Android)
 ### Backend (`app.py`, Flask + gunicorn en Render, deploy automático desde GitHub)
 - Rutas: `/audio` (transcribe + extrae, NO agenda; recibe `hoy` = fecha del celular), `/transcribir`,
   `/app` (sirve `index.html`), `/styles.css`, `/movil.css`, `/app.js`, `/iconos/<archivo>`, `/manifest.webmanifest`,
-  `/` (página de presentación, carpeta `presentacion/`), `/presentacion/<archivo>` (sólo .css y .js), `/estado` (texto de estado).
+  `/` (página de presentación, carpeta `presentacion/`), `/presentacion/<archivo>` (sólo .css y .js), `/estado` (texto de estado; la app lo llama para despertar
+  el servidor), `/guia` (guía para quienes prueban Kynus, carpeta `guia/`). Los logs no guardan lo que dice cada usuario.
 - El servidor no toca ningún calendario: no hay cuenta de servicio ni `CALENDAR_ID` (se sacaron en la v13).
 - Variable de entorno en Render: `GROQ_API_KEY` (`GOOGLE_SERVICE_ACCOUNT` ya no se usa).
 - Los archivos se sirven con ruta absoluta (`os.path.dirname(__file__)`), si no Render devuelve 0 bytes.
 - `requirements.txt`: flask, requests, gunicorn.
-- Render free se duerme a los 15 min: la primera petición tarda.
+- Render free se duerme a los 15 min: la primera petición tarda hasta ~1 min. La app lo despierta al abrirse y al
+  empezar a grabar (`despertarServidor`, por Netlify `/estado`) y si Netlify devuelve 502/503/504 avisa
+  "Despertando el servidor…" y reintenta hasta 80 s (`pedirServidor`). Opcional: un monitor gratis (UptimeRobot)
+  que pida `/estado` cada 10 min lo mantiene despierto.
 - Cuota de Groq (v17): `/audio` y `/transcribir` siguen abiertos pero con límites en memoria (`app.py`):
   30 por hora y 150 por día por IP (Netlify la pasa en `X-Nf-Client-Connection-Ip`), tope total de 18 por
   minuto y 800 por día, audio de 3 MB como mucho (413). Responden 429 con un mensaje para la app. Los
@@ -81,7 +85,10 @@ App web (celular, Chrome Android)
 - OLED SSD1306 0.96" 128×64 por I2C: SDA=8, SCL=9 (`Wire.begin(8,9)`). Botón en GPIO 4 con `INPUT_PULLUP`
   (alternativas libres: 3, 5, 6, 7, 10). "USB CDC On Boot" activado.
 - Ojos animados con FluxGarage RoboEyes: `RoboEyes<Adafruit_SSD1306> roboEyes(display);`
-- Nombre BLE: `BLEDevice::init("Kynus")` (antes "Llavero..."; la app acepta los dos).
+- Nombre BLE: cada llavero se llama `Kynus-XXXX` (últimos 2 bytes de su MAC, `armarNombre()`); se ve arriba a
+  la izquierda los primeros 8 s después de prenderse. La app acepta "Kynus" y "Llavero" (los viejos "Llavero C3").
+- Batería (está siempre prendido): CPU a 80 MHz, brillo 0x50, ojos a 40 cuadros/s, aviso BLE cada 0,5–1 s
+  (`CPU_MHZ`, `BRILLO`, `CUADROS_POR_SEG`, `AVISO_*_MS` en `llavero.ino`). Falta medir cuánto dura.
 - Un solo botón: 1 clic prende · 2 clics muestra eventos · 1 clic sale de eventos ·
   mantener 3 s apaga · se apaga solo a los 5 min (`TIEMPO_APAGADO_AUTO 300000`). Ventana de clics 300 ms.
 - Animación de arranque: punto → línea → estrella de 8 puntas que gira y se "sella" →
@@ -95,7 +102,7 @@ App web (celular, Chrome Android)
   (lágrima, corazones, Zzz, ?, !, estrellitas) antes de cada cuadro de RoboEyes.
 - `agenda.h`: lee el mensaje, guarda hasta 24 eventos y cuenta la hora desde la sincronización (se pierde al
   apagar). El mensaje se procesa cuando pasan 700 ms sin trozos nuevos (antes se cortaba si era largo).
-- El código actual es la versión **sin botón** (BLE "Llavero C3"). Al prenderse, la frase sale 1 de cada 5 veces
+- El código actual es la versión **sin botón**. Al prenderse, la frase sale 1 de cada 5 veces
   (`CHANCE_FRASE`). Al sincronizar: eventos de hoy y después los próximos días. Al terminar un mood, 35% de
   chance (`PROXIMOS_CHANCE`, como mucho cada 3 min) de mostrar los próximos días (hasta 3, uno por pantalla).
   Cada 1 min repasa lo que queda de hoy (los eventos que ya terminaron no se muestran). Si todos los de hoy

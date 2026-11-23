@@ -115,7 +115,8 @@ def transcribir_audio(archivo):
         files=files,
         data=data
     )
-    print(f"Respuesta Groq: {respuesta.json()}")
+    if not respuesta.ok:
+        print(f"Groq (audio) respondió {respuesta.status_code}")
     return respuesta.json().get("text", "")
 
 
@@ -151,7 +152,8 @@ def extraer_evento(texto, hoy):
         headers=headers,
         json=body
     )
-    print(f"Respuesta Llama: {respuesta.json()}")
+    if not respuesta.ok:
+        print(f"Groq (evento) respondió {respuesta.status_code}")
     contenido = respuesta.json()["choices"][0]["message"]["content"].strip()
     # A veces el modelo envuelve el JSON en ```json ... ```
     contenido = contenido.strip("`").removeprefix("json").strip()
@@ -166,7 +168,6 @@ def recibir_audio():
         return problema
 
     texto = transcribir_audio(request.files['audio'])
-    print(f"Transcripción: {texto}")
     if not texto.strip():
         return jsonify({'error': 'No se entendió el audio'}), 400
 
@@ -180,9 +181,9 @@ def recibir_audio():
         if not titulo:
             raise ValueError('sin título')
     except Exception as e:
-        print(f"No se pudo extraer el evento: {e}")
+        print(f"No se pudo extraer el evento: {type(e).__name__}")
         return jsonify({'error': 'No entendí qué agendar. Probá decir qué, qué día y a qué hora.'}), 400
-    print(f"Evento: {titulo} {fecha} {hora}")
+    print("Evento entendido")   # sin el contenido: lo que dice cada uno es privado
 
     return jsonify({
         'ok': True,
@@ -200,7 +201,7 @@ def solo_transcribir():
     if problema:
         return problema
     texto = transcribir_audio(request.files['audio'])
-    print(f"Transcripción nota: {texto}")
+    print("Nota transcripta")
     return jsonify({'ok': True, 'texto': texto})
 
 
@@ -282,6 +283,12 @@ def archivo_presentacion(nombre):
     if ext not in TIPOS_PRESENTACION or os.path.basename(nombre) != nombre or not os.path.isfile(ruta):
         return "No encontrado", 404
     return archivo(os.path.join('presentacion', nombre), TIPOS_PRESENTACION[ext])
+
+
+# Guía para quienes prueban Kynus
+@app.route('/guia')
+def guia():
+    return archivo(os.path.join('guia', 'index.html'), 'text/html')
 
 
 @app.route('/estado')

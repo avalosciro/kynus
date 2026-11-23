@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cómo usar Kynus</title>
+<meta name="description" content="Guía para usar Kynus: instalar la app, conectar Google Calendar, vincular el llavero y agendar con la voz.">
+<meta name="theme-color" content="#7FB9E6">
+<link rel="icon" href="/iconos/favicon.svg?v=11" type="image/svg+xml">
+<link rel="icon" href="/iconos/favicon-32.png?v=11" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/iconos/icono-180.png?v=11">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;700;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  /* Guía de Kynus: la estética del proyecto (cielo Y2K, ventanitas tipo Windows 98),
+     pensada para leer en el celular. Un solo aspecto claro, a propósito. */
+  :root{
+    --tinta:#111111; --texto-2:#3A3450; --tenue:#6C6585;
+    --papel:#FFFFFF; --papel-2:#FBF7FF;
+    --rosa:#F49AD6; --rosa-claro:#F9D3EE; --lila:#C9A4F2; --menta:#9FE8C8; --manteca:#FFDD8F; --durazno:#FFB59C;
+    --cielo-1:#7FB9E6; --cielo-2:#A9D2F0; --cielo-3:#D7ECFA;
+    --borde:3px solid var(--tinta);
+    --sombra-ventana:8px 8px 0 0 var(--lila), 8px 8px 0 3px var(--tinta);
+    --fuente:"Archivo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --titulo:"Archivo Black", "Archivo", system-ui, sans-serif;
+    --pixel:"Press Start 2P", ui-monospace, monospace;
+    color-scheme:light;
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0; color:var(--tinta); font:16px/1.6 var(--fuente); -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(closest-side, rgba(255,255,255,.9), rgba(255,255,255,0)) -10vw 4vh / 70vw 22vw no-repeat,
+      radial-gradient(closest-side, rgba(255,255,255,.8), rgba(255,255,255,0)) 70vw 40vh / 60vw 18vw no-repeat,
+      linear-gradient(180deg, var(--cielo-1) 0%, var(--cielo-2) 40%, var(--cielo-3) 100%) fixed;
+    background-color:var(--cielo-2);
+    padding:max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(48px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  .hoja{ max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:28px; }
+  a{ color:var(--tinta); text-underline-offset:3px; text-decoration-thickness:2px; }
+  a:hover{ text-decoration-color:var(--rosa); }
+  :focus-visible{ outline:3px solid var(--rosa); outline-offset:3px; }
+
+  /* ---------- Cabecera ---------- */
+  .marca{ display:flex; align-items:center; gap:8px; font:400 10px/1 var(--pixel); letter-spacing:.06em; }
+  .marca svg{ width:16px; height:16px; }
+  h1{ font:italic 400 clamp(36px, 10vw, 60px)/1 var(--titulo); letter-spacing:-.015em; margin:12px 0 12px; text-wrap:balance; }
+  .bajada{ margin:0; font-size:17.5px; color:var(--texto-2); max-width:56ch; }
+  .lema{ font-weight:700; color:var(--tinta); }
+
+  /* ---------- Ventanitas ---------- */
+  .ventana{ background:var(--papel); border:var(--borde); box-shadow:var(--sombra-ventana); }
+  .barra{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 10px 7px 12px; background:var(--rosa-claro); border-bottom:var(--borde); font-weight:800; font-size:14px; }
+  .barra .paso{ font:400 9px/1 var(--pixel); color:var(--texto-2); white-space:nowrap; }
+  .cuerpo{ padding:18px 18px 20px; display:flex; flex-direction:column; gap:12px; }
+  h2{ font:italic 400 clamp(23px, 6vw, 30px)/1.1 var(--titulo); margin:0; letter-spacing:-.01em; text-wrap:balance; }
+  h3{ font:800 16px/1.3 var(--fuente); margin:6px 0 0; }
+  p{ margin:0; }
+  ol, ul{ margin:0; padding-left:1.35em; display:flex; flex-direction:column; gap:7px; }
+  li::marker{ font-weight:800; }
+  .tenue{ color:var(--tenue); font-size:14.5px; }
+
+  /* Lo que hay que tener antes de empezar */
+  .necesitas{ list-style:none; padding:0; display:grid; gap:10px; }
+  .necesitas li{ display:flex; gap:12px; align-items:flex-start; padding:12px 14px; background:var(--papel-2); border:2px solid var(--tinta); border-radius:12px; }
+  .necesitas b{ display:block; }
+  .marquita{ flex-shrink:0; width:26px; height:26px; display:grid; place-items:center; border:2px solid var(--tinta); border-radius:8px; background:var(--menta); font-weight:800; }
+
+  /* Botones y textos de la app, como se ven en pantalla */
+  .boton{ display:inline-block; padding:1px 8px; border:2px solid var(--tinta); border-radius:8px; background:var(--papel); font-weight:800; font-size:.92em; white-space:nowrap; }
+  .boton.rosa{ background:var(--rosa); }
+  .boton.verde{ background:var(--menta); }
+  .punto{ display:inline-block; width:11px; height:11px; border-radius:50%; background:var(--menta); border:2px solid var(--tinta); vertical-align:-1px; }
+  code, .nombre{ font:400 11px/1.6 var(--pixel); background:#0A0A10; color:#BFE6FF; padding:3px 7px; border-radius:6px; white-space:nowrap; }
+  .ejemplo{ font-weight:700; font-style:italic; }
+
+  /* Notas y avisos */
+  .nota{ padding:12px 14px; border:2px solid var(--tinta); border-radius:12px; background:var(--manteca); font-size:15px; }
+  .nota.cuidado{ background:var(--durazno); }
+  .nota b{ font-weight:800; }
+
+  /* Pantallita del llavero (como se ve el OLED) */
+  .pantallas{ display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap:12px; }
+  .pantalla{ display:flex; flex-direction:column; gap:6px; }
+  .oled{ aspect-ratio:2/1; max-width:100%; background:#07090F; border:3px solid var(--tinta); border-radius:10px; display:grid; place-items:center; padding:10px; color:#BFE6FF; font:400 9px/1.7 var(--pixel); text-align:center; overflow:hidden; }
+  .oled .ojos{ display:flex; gap:12%; width:70%; justify-content:center; }
+  .oled .ojos i{ width:36%; aspect-ratio:1; background:#BFE6FF; border-radius:22%; }
+  .pantalla span{ font-size:14px; color:var(--texto-2); }
+
+  /* Preguntas */
+  details{ border:2px solid var(--tinta); border-radius:12px; background:var(--papel-2); }
+  details + details{ margin-top:8px; }
+  summary{ cursor:pointer; padding:12px 14px; font-weight:800; list-style:none; display:flex; justify-content:space-between; gap:12px; }
+  summary::-webkit-details-marker{ display:none; }
+  summary::after{ content:"+"; font:400 12px/1.6 var(--pixel); }
+  details[open] summary::after{ content:"−"; }
+  details > div{ padding:0 14px 14px; display:flex; flex-direction:column; gap:8px; }
+
+  .pie{ text-align:center; color:var(--texto-2); font-size:14px; display:flex; flex-direction:column; gap:6px; align-items:center; }
+  .pie .estrella{ width:22px; height:22px; }
+  .ir-app{ display:inline-block; margin-top:4px; padding:12px 20px; background:var(--rosa); border:var(--borde); border-radius:14px; box-shadow:4px 4px 0 var(--tinta); font-weight:800; text-decoration:none; }
+  .ir-app:active{ transform:translate(2px, 2px); box-shadow:2px 2px 0 var(--tinta); }
+  @media (prefers-reduced-motion:reduce){ .ir-app:active{ transform:none; } }
+</style>
+</head>
+<body>
+<main class="hoja">
+
+  <header>
+    <div class="marca">
+      <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M5 0 6 3.8 10 5 6 6.2 5 10 4 6.2 0 5 4 3.8z"/></svg>
+      KYNUS
+    </div>
+    <h1>Cómo usar tu Kynus</h1>
+    <p class="bajada">Le hablás al celular, el evento se anota en tu Google Calendar y el llavero te muestra lo que tenés en el día. <span class="lema">Tu estrella guía para el día a día ✦</span></p>
+  </header>
+
+  <!-- Qué necesitás -->
+  <section class="ventana" aria-labelledby="t-necesitas">
+    <div class="barra"><span>antes.exe</span><span class="paso">ANTES DE EMPEZAR</span></div>
+    <div class="cuerpo">
+      <h2 id="t-necesitas">Qué necesitás</h2>
+      <ul class="necesitas">
+        <li><span class="marquita" aria-hidden="true">1</span><span><b>Un celular Android con Chrome.</b> El llavero se conecta por Bluetooth y eso sólo anda en Chrome (también en una compu con Chrome). En iPhone la app funciona, pero no puede mandarle nada al llavero.</span></li>
+        <li><span class="marquita" aria-hidden="true">2</span><span><b>Tu mail en la lista de Kynus.</b> Kynus todavía está en prueba: para que se agende solo en tu Google Calendar, Ciro tiene que agregar tu mail de Google. Pasáselo antes de empezar.</span></li>
+        <li><span class="marquita" aria-hidden="true">3</span><span><b>El llavero cargado.</b> Se carga por el USB-C, como un celular.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Paso 1 -->
+  <section class="ventana" aria-labelledby="t-instalar">
+    <div class="barra"><span>instalar.exe</span><span class="paso">PASO 1 DE 4</span></div>
+    <div class="cuerpo">
+      <h2 id="t-instalar">Instalá la app</h2>
+      <ol>
+        <li>Abrí <a href="/app"><b>kynus.netlify.app/app</b></a> en Chrome.</li>
+        <li>Tocá los tres puntitos <span class="boton">⋮</span> de arriba a la derecha.</li>
+        <li>Elegí <span class="boton">Agregar a la pantalla principal</span> y después <span class="boton">Instalar</span>.</li>
+      </ol>
+      <p>Te queda Kynus en el celular como una app más. La primera vez que la abrís, un tutorial te muestra todo lo que hace.</p>
+      <p class="tenue">Tus notas se guardan sólo en tu celular: no hay cuentas ni contraseñas.</p>
+    </div>
+  </section>
+
+  <!-- Paso 2 -->
+  <section class="ventana" aria-labelledby="t-google">
+    <div class="barra"><span>google.exe</span><span class="paso">PASO 2 DE 4</span></div>
+    <div class="cuerpo">
+      <h2 id="t-google">Conectá tu Google Calendar</h2>
+      <ol>
+        <li>En la app, tocá los tres puntitos <span class="boton">···</span> de arriba del panel.</li>
+        <li>Elegí <span class="boton">Conectar Google Calendar</span> y tu cuenta.</li>
+        <li>Va a salir un cartel que dice <b>"Google no verificó esta app"</b>. Es normal mientras Kynus está en prueba: tocá <span class="boton">Avanzado</span> y después <span class="boton">Ir a Kynus</span>.</li>
+        <li>Tildá el permiso del calendario y aceptá.</li>
+      </ol>
+      <div class="nota"><b>¿Te dice que no tenés acceso?</b> Es porque tu mail todavía no está en la lista de prueba: pedile a Ciro que lo agregue.</div>
+      <p class="tenue">Si preferís no conectar tu cuenta, también se puede: después de grabar te aparece el botón <span class="boton rosa">Agregar a Google Calendar</span> y lo guardás con un toque.</p>
+    </div>
+  </section>
+
+  <!-- Paso 3 -->
+  <section class="ventana" aria-labelledby="t-llavero">
+    <div class="barra"><span>llavero.exe</span><span class="paso">PASO 3 DE 4</span></div>
+    <div class="cuerpo">
+      <h2 id="t-llavero">Prendé y vinculá el llavero</h2>
+      <ol>
+        <li>Prendelo con el interruptor. Después de la estrellita, arriba a la izquierda aparece su nombre unos segundos, por ejemplo <span class="nombre">Kynus-A1B2</span>. Anotalo: es el tuyo.</li>
+        <li>En la app, tocá <span class="boton">Llavero</span> en la barra de abajo.</li>
+        <li>En la lista elegí <b>el nombre de tu llavero</b> (si hay varios cerca, cada uno tiene el suyo).</li>
+      </ol>
+      <p>Listo: el llavero recibe tus eventos de hoy y de la semana, y en el botón aparece un puntito verde <span class="punto" aria-label="puntito verde"></span>. Mientras la app esté abierta, lo que grabes le llega solo.</p>
+      <p class="tenue">Si cerrás la app del todo, al volver a abrirla tocá <span class="boton">Llavero</span> una vez para vincularlo de nuevo.</p>
+    </div>
+  </section>
+
+  <!-- Paso 4 -->
+  <section class="ventana" aria-labelledby="t-grabar">
+    <div class="barra"><span>grabar.exe</span><span class="paso">PASO 4 DE 4</span></div>
+    <div class="cuerpo">
+      <h2 id="t-grabar">Agendá con la voz</h2>
+      <ol>
+        <li>Tocá el botón rosa del micrófono.</li>
+        <li>Decí <b>qué</b>, <b>qué día</b> y <b>a qué hora</b>: <span class="ejemplo">"dentista el jueves a las 5"</span>, <span class="ejemplo">"entregar el TP mañana a las 8"</span>.</li>
+        <li>Tocá de nuevo para terminar. Kynus lo entiende y lo agenda.</li>
+      </ol>
+      <div class="nota"><b>Tips:</b> si no decís la hora, queda a las 9 de la mañana. Cada grabación puede durar hasta un minuto (se corta sola). Y para que no se gaste lo gratis, cada persona puede grabar hasta 30 veces por hora.</div>
+    </div>
+  </section>
+
+  <!-- Qué muestra el llavero -->
+  <section class="ventana" aria-labelledby="t-pantalla">
+    <div class="barra"><span>pantalla.exe</span><span class="paso">EL LLAVERO</span></div>
+    <div class="cuerpo">
+      <h2 id="t-pantalla">Qué vas a ver en el llavero</h2>
+      <div class="pantallas">
+        <div class="pantalla"><div class="oled" aria-hidden="true"><div class="ojos"><i></i><i></i></div></div><span><b>Los ojitos.</b> Cambian de humor solos: feliz, con sueño, curioso, enamorado…</span></div>
+        <div class="pantalla"><div class="oled" aria-hidden="true">EVENTO 1/2<br>Hora: 17:00<br>Dentista</div><span><b>Lo de hoy.</b> Al sincronizar y cada tanto, lo que te queda del día.</span></div>
+        <div class="pantalla"><div class="oled" aria-hidden="true">✦ MAÑANA<br>08:00 Entregar TP<br>18:00 Gym</div><span><b>Los próximos días.</b> De vez en cuando, entre humor y humor.</span></div>
+        <div class="pantalla"><div class="oled" aria-hidden="true">✦ FRASE<br>Tomá agua.<br>Sí, ahora.</div><span><b>Una frase.</b> Algunas veces, al prenderse: citas, tips para estudiar y recordatorios.</span></div>
+      </div>
+      <p class="tenue">Si todo lo de hoy ya pasó, te dice <b>"¡Listo por hoy!"</b>.</p>
+    </div>
+  </section>
+
+  <!-- Batería -->
+  <section class="ventana" aria-labelledby="t-bateria">
+    <div class="barra"><span>bateria.exe</span><span class="paso">CUIDADOS</span></div>
+    <div class="cuerpo">
+      <h2 id="t-bateria">Batería y cuidados</h2>
+      <ul>
+        <li>Cargalo por el USB-C. Mientras está prendido gasta todo el tiempo: <b>apagalo con el interruptor cuando no lo uses</b>.</li>
+        <li>Al apagarlo se olvida de la fecha. Cuando lo prendas, tocá <span class="boton">Llavero</span> en la app para que vuelva a saber qué día es.</li>
+      </ul>
+      <div class="nota cuidado"><b>Importante:</b> tiene una batería de litio. No lo dejes cargando sin mirar (por ejemplo, toda la noche), no lo aprietes ni lo golpees, y no lo mojes. Si se calienta mucho, se hincha o huele raro, desconectalo, no lo uses más y avisale a Ciro.</div>
+    </div>
+  </section>
+
+  <!-- Problemas -->
+  <section class="ventana" aria-labelledby="t-problemas">
+    <div class="barra"><span>ayuda.exe</span><span class="paso">SI ALGO NO ANDA</span></div>
+    <div class="cuerpo">
+      <h2 id="t-problemas">Si algo no anda</h2>
+      <div>
+        <details>
+          <summary>La primera grabación tarda mucho</summary>
+          <div><p>El servidor de Kynus es gratis y se "duerme" cuando nadie lo usa un rato. La primera vez puede tardar hasta un minuto en despertar: la app te avisa y lo vuelve a intentar sola. Después anda rápido.</p></div>
+        </details>
+        <details>
+          <summary>No aparece el llavero en la lista</summary>
+          <div><p>Fijate que esté prendido y cerca, y que el Bluetooth del celular esté activado. Si Chrome te pide permiso para buscar dispositivos cercanos (o la ubicación), aceptalo: Android lo necesita para encontrar el llavero.</p></div>
+        </details>
+        <details>
+          <summary>Grabé algo y no le llegó al llavero</summary>
+          <div><p>Mirá si el botón <span class="boton">Llavero</span> tiene el puntito verde <span class="punto" aria-label="puntito verde"></span>. Si no lo tiene (por ejemplo, porque cerraste la app), tocalo una vez. Si el llavero estaba lejos o apagado, se lo manda solo cuando vuelve a estar cerca y la app abierta.</p></div>
+        </details>
+        <details>
+          <summary>El llavero no muestra los próximos días</summary>
+          <div><p>Seguramente lo apagaste y se olvidó de la fecha. Tocá <span class="boton">Llavero</span> en la app y listo.</p></div>
+        </details>
+        <details>
+          <summary>Me dice que grabé muchas veces</summary>
+          <div><p>Para cuidar lo gratis, cada persona puede grabar hasta 30 veces por hora y 150 por día. Esperá un rato y seguí.</p></div>
+        </details>
+        <details>
+          <summary>No me deja conectar Google</summary>
+          <div><p>Tu mail tiene que estar en la lista de prueba de Kynus: pedíselo a Ciro. Mientras tanto podés usar el botón <span class="boton rosa">Agregar a Google Calendar</span>.</p></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Datos -->
+  <section class="ventana" aria-labelledby="t-datos">
+    <div class="barra"><span>datos.exe</span><span class="paso">TUS DATOS</span></div>
+    <div class="cuerpo">
+      <h2 id="t-datos">Qué pasa con tus datos</h2>
+      <ul>
+        <li><b>Lo que grabás con la voz</b> se manda a Groq, un servicio que lo pasa a texto. El servidor de Kynus no guarda tus audios.</li>
+        <li><b>Tus eventos</b> van a tu propio Google Calendar. Kynus no tiene una copia en ningún servidor.</li>
+        <li><b>Tus notas y tareas</b> quedan sólo en tu celular. Si borrás la app se pierden: hacé una copia desde <span class="boton">···</span> → <span class="boton">Exportar todo</span>.</li>
+        <li>Podés desconectar Google cuando quieras desde <span class="boton">···</span> → <span class="boton">Desconectar Google</span>, o en <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">tu cuenta de Google</a>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="pie">
+    <svg class="estrella" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 0 6 3.8 10 5 6 6.2 5 10 4 6.2 0 5 4 3.8z" fill="#111"/></svg>
+    <p>¿Algo no anda o se te ocurre una idea? Contáselo a Ciro: Kynus está en prueba y todo sirve.</p>
+    <a class="ir-app" href="/app">Abrir Kynus</a>
+    <p class="tenue">Kynus · proyecto de 5°C, Instituto Técnico El Obraje</p>
+  </footer>
+</main>
+</body>
+</html>

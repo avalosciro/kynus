@@ -10,7 +10,7 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 17;
+const VERSION = 18;
 const LIMITE = 35000;                    // caracteres por nota
 const esMovil = () => document.documentElement.classList.contains("movil");
 const sinMovimiento = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1010,6 +1010,7 @@ async function grabar(boton, alTerminar, maxMs = 0){
   if (!navigator.mediaDevices || !window.MediaRecorder){
     avisar("Este navegador no puede grabar audio", "error"); return;
   }
+  if (maxMs) despertarServidor();   // va al servidor: que se vaya despertando mientras hablás
   try{
     const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
     const mime = tipoAudio();
@@ -1039,12 +1040,43 @@ async function grabar(boton, alTerminar, maxMs = 0){
   }
 }
 
+/* ---------- El servidor (Render gratis) se duerme a los 15 min sin uso ----------
+   Al despertar tarda hasta un minuto, y mientras tanto Netlify puede devolver 502/503/504.
+   Por eso: se lo "despierta" apenas abrís la app o empezás a grabar, y si un pedido
+   falla porque está dormido, se reintenta solo avisando qué pasa. */
+let ultimoDespertador = 0;
+function despertarServidor(){
+  if (Date.now() - ultimoDespertador < 5 * 60 * 1000) return;
+  ultimoDespertador = Date.now();
+  fetch(`${BACKEND}/estado`, { cache:"no-store" }).catch(() => {});
+}
+
+async function pedirServidor(ruta, fd){
+  const inicio = Date.now();
+  const aviso = setTimeout(() => avisar("Despertando el servidor… la primera vez puede tardar hasta un minuto", "", 0), 5000);
+  try{
+    for (;;){
+      let res = null;
+      try{ res = await fetch(`${BACKEND}${ruta}`, { method:"POST", body:fd }); }
+      catch(e){ if (!navigator.onLine) throw e; }   // sin internet: no tiene sentido esperar
+      if (res && ![502, 503, 504].includes(res.status)){
+        const data = await res.json();               // si no es JSON, tira SyntaxError
+        if (!res.ok || data.error) throw new Error(data.error || "El servidor no pudo con el audio");
+        return data;
+      }
+      if (Date.now() - inicio > 80 * 1000) throw res ? new SyntaxError("el servidor no despertó") : new TypeError("sin conexión");
+      avisar("Despertando el servidor… la primera vez puede tardar hasta un minuto", "", 0);
+      await new Promise(r => setTimeout(r, 4000));
+    }
+  }finally{
+    clearTimeout(aviso);
+  }
+}
+
 async function transcribir(blob){
   const fd = new FormData();
   fd.append("audio", blob, "audio." + extension(blob.type));
-  const res = await fetch(`${BACKEND}/transcribir`, { method:"POST", body:fd });
-  const data = await res.json();
-  if (!res.ok || data.error) throw new Error(data.error || "Falló la transcripción");
+  const data = await pedirServidor("/transcribir", fd);
   return (data.texto || "").trim();
 }
 
@@ -1266,9 +1298,7 @@ $("btnGrabar").onclick = () => grabar($("btnGrabar"), async blob => {
   fd.append("audio", blob, "audio." + extension(blob.type));
   fd.append("hoy", fechaLocal(new Date()));
   try{
-    const res  = await fetch(`${BACKEND}/audio`, { method:"POST", body:fd });
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error);
+    const data = await pedirServidor("/audio", fd);
     const ev = { titulo:data.evento, fecha:data.fecha, hora:data.hora || "09:00" };
     guardarEvento(ev);
     recordarReciente(ev);
@@ -2067,6 +2097,7 @@ function iniciarTutorial(){
 
 $("btnMenu").onclick = e => abrirMenu(e.currentTarget, [
   { txt:"Ver el tutorial ✦",             fn: iniciarTutorial },
+  { txt:"Guía de uso (para compartir)",  fn: () => window.open("/guia", "_blank", "noopener") },
   { txt:"Sincronizar llavero",           fn: sincronizar },
   ...(googleDisponible() ? [
     googleConectado()
@@ -2159,3 +2190,5 @@ else {
 }
 // Con Google conectado, el script de Google se baja antes, así la ventanita del permiso abre al toque
 if (googleConectado()) setTimeout(() => cargarGIS().catch(() => {}), 1500);
+// El servidor gratis se duerme: se lo despierta apenas abrís la app, así ya está listo cuando grabás
+despertarServidor();

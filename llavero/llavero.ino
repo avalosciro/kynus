@@ -12,7 +12,7 @@
 #include "agenda.h"            // eventos de hoy y de los próximos días, y el reloj
 
 // ============================================================
-//  KYNUS — llavero (versión sin botón)
+//  KYNUS — llavero (versión sin botón). Cada uno se llama "Kynus-XXXX" (ver armarNombre)
 //  - Al encender: estrella → (1 de cada 5 veces) una frase → los ojitos
 //  - Los ojitos cambian de mood solos cada tanto (feliz, cansado, triste,
 //    enojado, sorprendido, curioso, enamorado, dormido, nervioso,
@@ -41,6 +41,19 @@
 #define PROXIMOS_PAUSA      180000   // y nunca antes de 3 minutos desde la última vez
 #define MAX_DIAS_PROXIMOS   3        // cuántos días muestra (los que tengan algo, dentro de una semana)
 #define SILENCIO_BLE        700      // ms sin trozos nuevos = el mensaje terminó de llegar
+
+// Batería: el llavero está siempre prendido, así que se cuida lo que más gasta
+#define CPU_MHZ             80       // el ESP32-C3 viene a 160 MHz; 80 alcanza (es el mínimo con Bluetooth)
+#define BRILLO              0x50     // brillo de la pantalla, de 0x00 a 0xFF (venía en 0xCF): menos brillo = menos consumo
+#define CUADROS_POR_SEG     40       // cuadros por segundo de los ojos (venía en 100, aunque la pantalla no llegaba)
+#define AVISO_MIN_MS        500      // cada cuánto avisa "acá estoy" por Bluetooth: entre 0,5 y 1 segundo
+#define AVISO_MAX_MS        1000
+#define MOSTRAR_NOMBRE_MS   8000     // al prenderse, el nombre del llavero se ve arriba a la izquierda 8 s
+
+// Cada llavero tiene su nombre (con el final de su dirección Bluetooth): así, si hay varios
+// cerca, en la lista del celular se distingue cuál es el tuyo. La app acepta los que empiezan con "Kynus".
+char nombreLlavero[16];
+unsigned long momentoDespierto = 0;
 
 PantallaKynus display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 RoboEyes<PantallaKynus> roboEyes(display);
@@ -157,7 +170,22 @@ bool alTerminarAnimo() {
 }
 
 // Los dibujitos de cada mood se pintan encima de los ojos, justo antes de mostrar el cuadro
-void dibujarExtras() { animos.dibujarExtras(); }
+void dibujarExtras() {
+    animos.dibujarExtras();
+    // Los primeros segundos después de prenderse, el nombre del llavero arriba a la izquierda
+    if (millis() - momentoDespierto < MOSTRAR_NOMBRE_MS) {
+        display.fillRect(0, 0, strlen(nombreLlavero) * 6 + 2, 9, SSD1306_BLACK);
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(1, 1);
+        display.print(nombreLlavero);
+    }
+}
+
+void armarNombre() {
+    const uint64_t mac = ESP.getEfuseMac();   // los últimos 2 bytes de la dirección, como "A1B2"
+    snprintf(nombreLlavero, sizeof nombreLlavero, "Kynus-%02X%02X", (uint8_t)(mac >> 32), (uint8_t)(mac >> 40));
+}
 
 // Prender: estrella → (a veces) frase → ojos
 void despertar() {
@@ -186,7 +214,10 @@ class MiServidor : public BLEServerCallbacks {
 };
 
 void setup() {
+    setCpuFrequencyMhz(CPU_MHZ);   // ahorra batería (tiene que ir antes que el Bluetooth)
     Serial.begin(115200);
+    armarNombre();
+    Serial.printf("Soy %s\n", nombreLlavero);
 
     // Inicialización explícita de I2C en la ESP32-C3 SuperMini
     Wire.begin(PIN_SDA, PIN_SCL);
@@ -194,17 +225,19 @@ void setup() {
     if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
         Serial.println("Error: OLED SSD1306 no encontrada.");
     }
+    display.ssd1306_command(SSD1306_SETCONTRAST);   // menos brillo = menos consumo
+    display.ssd1306_command(BRILLO);
     display.cp437(true);   // tabla de letras correcta (tildes, ñ, ¿, ¡)
     display.clearDisplay();
     display.display();
 
-    roboEyes.begin(SCREEN_WIDTH, SCREEN_HEIGHT, 100);
+    roboEyes.begin(SCREEN_WIDTH, SCREEN_HEIGHT, CUADROS_POR_SEG);
     roboEyes.setAutoblinker(ON, 3, 2);
     roboEyes.setIdleMode(ON, 3, 2);
     animos.alTerminar = alTerminarAnimo;
 
     // Inicializar Servidor Bluetooth LE
-    BLEDevice::init("Llavero C3");
+    BLEDevice::init(nombreLlavero);
     BLEServer *pServer = BLEDevice::createServer();
     pServer->setCallbacks(new MiServidor());
     BLEService *pService = pServer->createService(SERVICE_UUID);
@@ -215,11 +248,15 @@ void setup() {
     pChar->addDescriptor(new BLE2902());
     pChar->setCallbacks(new MiCallback());
     pService->start();
-    pServer->getAdvertising()->start();
+    BLEAdvertising *aviso = pServer->getAdvertising();
+    aviso->setMinInterval(AVISO_MIN_MS * 8 / 5);   // en unidades de 0,625 ms
+    aviso->setMaxInterval(AVISO_MAX_MS * 8 / 5);
+    aviso->start();
     Serial.println("BLE iniciado y publicando.");
 
-    // Se prende solo: estrella, a veces una frase y después los ojitos
+    // Se prende solo: estrella, a veces una frase y después los ojitos (con el nombre arriba un ratito)
     despertar();
+    momentoDespierto = millis();
     ultimaVezHoy = millis();
     ultimaVezProximos = millis();
     Serial.println("Pantalla encendida");
