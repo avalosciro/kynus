@@ -9,15 +9,17 @@
 #include "animos.h"            // PantallaKynus y los estados de ánimo
 #include "animacion_inicio.h"
 #include "frases.h"
+#include "agenda.h"            // eventos de hoy y de los próximos días, y el reloj
 
 // ============================================================
 //  KYNUS — llavero (versión sin botón)
-//  - Al encender: estrella → frase del día → la frase se desarma en los ojitos
+//  - Al encender: estrella → (1 de cada 5 veces) una frase → los ojitos
 //  - Los ojitos cambian de mood solos cada tanto (feliz, cansado, triste,
 //    enojado, sorprendido, curioso, enamorado, dormido, nervioso,
 //    confundido, pícaro, emocionado)
-//  - Cuando llegan eventos por Bluetooth los muestra uno por uno
-//  - Cada 1 minuto vuelve a mostrar los eventos del día
+//  - Entre mood y mood, de vez en cuando muestra los eventos de los próximos días
+//  - Cuando sincronizás: eventos de hoy uno por uno y después los próximos días
+//  - Cada 1 minuto vuelve a mostrar lo que queda de hoy
 // ============================================================
 
 #define SERVICE_UUID        "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -31,116 +33,125 @@
 #define SCREEN_HEIGHT 64
 #define OLED_RESET -1
 
-#define TIEMPO_POR_EVENTO   3000    // cada evento se ve 3 segundos
-#define CADA_CUANTO_EVENTOS 60000   // cada 1 minuto vuelve a mostrar los eventos
+#define CHANCE_FRASE        5        // 1 de cada 5 veces que se prende muestra una frase
+#define TIEMPO_POR_EVENTO   3000     // cada evento de hoy se ve 3 segundos
+#define TIEMPO_POR_DIA      4000     // cada día de "próximos días" se ve 4 segundos
+#define CADA_CUANTO_EVENTOS 60000    // cada 1 minuto vuelve a mostrar lo que queda de hoy
+#define PROXIMOS_CHANCE     35       // % de las veces que, al terminar un mood, muestra los próximos días
+#define PROXIMOS_PAUSA      180000   // y nunca antes de 3 minutos desde la última vez
+#define MAX_DIAS_PROXIMOS   3        // cuántos días muestra (los que tengan algo, dentro de una semana)
+#define SILENCIO_BLE        700      // ms sin trozos nuevos = el mensaje terminó de llegar
 
 PantallaKynus display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 RoboEyes<PantallaKynus> roboEyes(display);
 Animos<PantallaKynus, RoboEyes<PantallaKynus>> animos(display, roboEyes);
 
+// Mensaje que llega por Bluetooth en trozos de 20 bytes
 String mensajeCompleto = "";
-volatile bool hayEvento = false;
-String eventos[10];
-int totalEventos = 0;
-int eventoActual = 0;
+volatile bool hayMensaje = false;
+volatile unsigned long ultimoTrozo = 0;
 
-bool mostrandoEventos = false;
-unsigned long ultimoCambioEvento = 0;
-unsigned long ultimaVezEventos = 0;
+// Qué se ve en la pantalla
+enum Modo { OJOS, HOY, PROXIMOS };
+Modo modo = OJOS;
+int paso = 0;                        // evento o día que se está mostrando
+unsigned long ultimoCambio = 0;
+unsigned long ultimaVezHoy = 0;
+unsigned long ultimaVezProximos = 0;
+bool despuesProximos = false;        // después de "hoy", seguir con los próximos días (al sincronizar)
 
-// Parser robusto para eventos separados por '|'
-void parsearEventos(String mensaje) {
-    totalEventos = 0;
-    int inicio = 0;
-    int fin = mensaje.indexOf('|');
+int idxHoy[agenda::MAX];
+int totalHoy = 0;
+int32_t diasProx[MAX_DIAS_PROXIMOS];
+int totalDias = 0;
 
-    while (fin != -1 && totalEventos < 10) {
-        eventos[totalEventos] = mensaje.substring(inicio, fin);
-        eventos[totalEventos].trim();
-        if (eventos[totalEventos].length() > 0) totalEventos++;
-        inicio = fin + 1;
-        fin = mensaje.indexOf('|', inicio);
-    }
-
-    // Capturar el último fragmento si no termina en '|'
-    if (inicio < (int)mensaje.length() && totalEventos < 10) {
-        String ultimo = mensaje.substring(inicio);
-        ultimo.trim();
-        if (ultimo.length() > 0) {
-            eventos[totalEventos] = ultimo;
-            totalEventos++;
-        }
-    }
-}
-
-void mostrarEventoActual() {
+// ---------- Eventos de hoy (uno por pantalla) ----------
+void mostrarEventoDeHoy() {
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
     display.setTextWrap(true);
 
-    if (totalEventos == 0) {
+    if (totalHoy == 0) {
         display.setCursor(10, 28);
         display.println("Sin eventos hoy");
         display.display();
         return;
     }
 
-    String evento = eventos[eventoActual % totalEventos];
-    String hora = "";
-    String titulo = evento;
-
-    // Formato "HH:MM titulo"
-    int espacioIdx = evento.indexOf(' ');
-    if (espacioIdx != -1) {
-        hora = evento.substring(0, espacioIdx);
-        titulo = evento.substring(espacioIdx + 1);
-    }
-
-    // Encabezado
+    const agenda::Evento &e = agenda::lista[idxHoy[paso]];
     display.setCursor(0, 0);
-    display.println("EVENTO " + String(eventoActual + 1) + "/" + String(totalEventos));
+    display.println("EVENTO " + String(paso + 1) + "/" + String(totalHoy));
     display.drawLine(0, 10, 128, 10, SSD1306_WHITE);
 
-    // Hora y título (las tildes y la ñ se pasan a la fuente del OLED)
     display.setCursor(0, 18);
-    display.println("Hora: " + hora);
+    if (e.minuto >= 0) {
+        char hora[6];
+        snprintf(hora, sizeof hora, "%02d:%02d", e.minuto / 60, e.minuto % 60);
+        display.println(String("Hora: ") + hora);
+    } else {
+        display.println(frases::aCp437(String("Todo el día")));
+    }
     display.setCursor(0, 36);
-    display.println(frases::aCp437(titulo));
-
+    display.println(e.titulo);   // ya está en la fuente del OLED
     display.display();
 }
 
-void empezarEventos() {
-    mostrandoEventos = true;
-    eventoActual = 0;
-    ultimoCambioEvento = millis();
-    mostrarEventoActual();
-    Serial.println("Mostrando eventos");
+void empezarHoy(bool seguirConProximos) {
+    totalHoy = agenda::deHoy(idxHoy);
+    modo = HOY;
+    paso = 0;
+    despuesProximos = seguirConProximos;
+    ultimoCambio = millis();
+    mostrarEventoDeHoy();
+    Serial.printf("Eventos de hoy: %d\n", totalHoy);
 }
 
-void volverAOjos() {
-    mostrandoEventos = false;
-    ultimaVezEventos = millis();
-    animos.poner(FELIZ, 6000);   // contento después de mostrarte el día
+// ---------- Próximos días (un día por pantalla) ----------
+void empezarProximos() {
+    totalDias = agenda::diasProximos(diasProx, MAX_DIAS_PROXIMOS);
+    if (totalDias == 0) { volverAOjos(false); return; }
+    modo = PROXIMOS;
+    paso = 0;
+    ultimoCambio = millis();
+    ultimaVezProximos = millis();
+    agenda::dibujarDia(display, diasProx[0], 0, totalDias);
+    Serial.printf("Proximos dias: %d\n", totalDias);
+}
+
+void volverAOjos(bool contento) {
+    modo = OJOS;
+    ultimaVezHoy = millis();
+    if (contento) animos.poner(FELIZ, 6000);   // contento después de mostrarte el día
+    else          animos.poner(NEUTRO, random(NEUTRO_DURA_MIN, NEUTRO_DURA_MAX));
     Serial.println("Modo ojos");
+}
+
+// Cuando termina un mood: a veces, en vez de volver a la normalidad, muestra los próximos días
+bool alTerminarAnimo() {
+    if (millis() - ultimaVezProximos < PROXIMOS_PAUSA) return false;
+    if ((int)(esp_random() % 100) >= PROXIMOS_CHANCE) return false;
+    if (agenda::diasProximos(diasProx, MAX_DIAS_PROXIMOS) == 0) return false;
+    empezarProximos();
+    return true;
 }
 
 // Los dibujitos de cada mood se pintan encima de los ojos, justo antes de mostrar el cuadro
 void dibujarExtras() { animos.dibujarExtras(); }
 
-// Prender: estrella → frase → ojos
+// Prender: estrella → (a veces) frase → ojos
 void despertar() {
-    animacionInicioConFrase(display, roboEyes, -1);   // -1 = sin botón
+    if (esp_random() % CHANCE_FRASE == 0) animacionInicioConFrase(display, roboEyes, -1);   // -1 = sin botón
+    else                                  animacionInicio(display, roboEyes, -1);
     animos.empezar();
 }
 
 class MiCallback : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
         String valor = pCharacteristic->getValue().c_str();
-        Serial.println("BLE Chunk recibido: " + valor);
-        mensajeCompleto += valor;
-        hayEvento = true;
+        if (mensajeCompleto.length() < 3000) mensajeCompleto += valor;
+        ultimoTrozo = millis();
+        hayMensaje = true;
     }
 };
 
@@ -170,6 +181,7 @@ void setup() {
     roboEyes.begin(SCREEN_WIDTH, SCREEN_HEIGHT, 100);
     roboEyes.setAutoblinker(ON, 3, 2);
     roboEyes.setIdleMode(ON, 3, 2);
+    animos.alTerminar = alTerminarAnimo;
 
     // Inicializar Servidor Bluetooth LE
     BLEDevice::init("Llavero C3");
@@ -186,43 +198,61 @@ void setup() {
     pServer->getAdvertising()->start();
     Serial.println("BLE iniciado y publicando.");
 
-    // Se prende solo: estrella, frase y después los ojitos
+    // Se prende solo: estrella, a veces una frase y después los ojitos
     despertar();
-    ultimaVezEventos = millis();
+    ultimaVezHoy = millis();
+    ultimaVezProximos = millis();
     Serial.println("Pantalla encendida");
 }
 
 void loop() {
-    // Procesar acumulación de paquetes BLE
-    if (hayEvento) {
-        delay(500); // Espera a que terminen de llegar los paquetes fragmentados
-        hayEvento = false;
-        parsearEventos(mensajeCompleto);
+    // El mensaje llega en trozos: se procesa cuando dejan de llegar (así no se corta si es largo)
+    if (hayMensaje && millis() - ultimoTrozo > SILENCIO_BLE) {
+        hayMensaje = false;
+        String mensaje = mensajeCompleto;
         mensajeCompleto = "";
-        Serial.println("Total eventos cargados: " + String(totalEventos));
-        empezarEventos();   // apenas llegan, se muestran
+        agenda::cargar(mensaje);
+        Serial.printf("Agenda: %d eventos (%s)\n", agenda::total, agenda::hayReloj ? "con fecha" : "formato viejo");
+        empezarHoy(true);   // apenas llegan: hoy y después los próximos días
     }
 
-    if (mostrandoEventos) {
-        // Pasar al siguiente evento cada 3 segundos; después del último vuelve a los ojos
-        if (millis() - ultimoCambioEvento > TIEMPO_POR_EVENTO) {
-            eventoActual++;
-            if (eventoActual >= totalEventos) {
-                volverAOjos();
+    const unsigned long ahora = millis();
+    if (modo == HOY) {
+        // Pasar al siguiente evento cada 3 segundos; al terminar, los próximos días o los ojos
+        if (ahora - ultimoCambio > TIEMPO_POR_EVENTO) {
+            paso++;
+            if (paso >= totalHoy) {
+                if (despuesProximos && agenda::diasProximos(diasProx, MAX_DIAS_PROXIMOS) > 0) empezarProximos();
+                else volverAOjos(true);
             } else {
-                ultimoCambioEvento = millis();
-                mostrarEventoActual();
+                ultimoCambio = ahora;
+                mostrarEventoDeHoy();
+            }
+        }
+    } else if (modo == PROXIMOS) {
+        if (ahora - ultimoCambio > TIEMPO_POR_DIA) {
+            paso++;
+            if (paso >= totalDias) {
+                volverAOjos(despuesProximos);
+                despuesProximos = false;
+            } else {
+                ultimoCambio = ahora;
+                agenda::dibujarDia(display, diasProx[paso], paso, totalDias);
             }
         }
     } else {
         animos.actualizar();
-        display.antesDeMostrar = dibujarExtras;   // sólo mientras se dibujan los ojos
-        roboEyes.update();
-        display.antesDeMostrar = nullptr;
+        if (modo == OJOS) {   // (al terminar un mood puede haber pasado a "próximos días")
+            display.antesDeMostrar = dibujarExtras;   // sólo mientras se dibujan los ojos
+            roboEyes.update();
+            display.antesDeMostrar = nullptr;
+        }
 
-        // Cada tanto, recordar los eventos del día (solo si hay)
-        if (totalEventos > 0 && millis() - ultimaVezEventos > CADA_CUANTO_EVENTOS) {
-            empezarEventos();
+        // Cada tanto, recordar lo que queda de hoy (sólo si hay algo)
+        if (modo == OJOS && millis() - ultimaVezHoy > CADA_CUANTO_EVENTOS) {
+            int idx[agenda::MAX];
+            if (agenda::deHoy(idx) > 0) empezarHoy(false);
+            else ultimaVezHoy = millis();
         }
     }
 

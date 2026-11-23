@@ -10,7 +10,7 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 13;
+const VERSION = 14;
 const LIMITE = 35000;                    // caracteres por nota
 const esMovil = () => document.documentElement.classList.contains("movil");
 const sinMovimiento = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1179,12 +1179,6 @@ function guardarEvento(ev){
   lista.push({ titulo:ev.titulo, fecha:ev.fecha, hora:ev.hora });
   escribir("llavero_eventos", JSON.stringify(lista));
 }
-function eventosGuardadosDeHoy(){
-  const hoy = fechaLocal(new Date());
-  return eventosGuardados().filter(e => e.fecha === hoy)
-    .sort((a, b) => a.hora.localeCompare(b.hora))
-    .map(e => ({ hora:e.hora, titulo:e.titulo }));
-}
 
 /* ---------- Agendar ---------- */
 function finDelEvento(ev, minutos = 60){
@@ -1239,7 +1233,7 @@ function ofrecerAgregar(ev, motivo = ""){
   if (btn) btn.onclick = async () => {
     btn.disabled = true;
     if (await conectarGoogle()){
-      try{ await agendarEnGoogle(ev); cerrarModal(); avisar(`Agendado: ${ev.titulo} · ${cuandoEs(ev)}`, "ok", 4500); }
+      try{ await agendarEnGoogle(ev); cerrarModal(); avisar(`Agendado: ${ev.titulo} · ${cuandoEs(ev)}`, "ok", 4500); actualizarLlaveroSolo("evento"); }
       catch(e){ btn.disabled = false; avisar(mensajeGoogle(e), "error", 4500); }
     } else btn.disabled = false;
   };
@@ -1262,7 +1256,7 @@ $("btnGrabar").onclick = () => grabar($("btnGrabar"), async blob => {
     const ev = { titulo:data.evento, fecha:data.fecha, hora:data.hora || "09:00" };
     guardarEvento(ev);
 
-    if (!permiso){ ofrecerAgregar(ev); return; }
+    if (!permiso){ ofrecerAgregar(ev); actualizarLlaveroSolo("evento"); return; }
     const error = await permiso;
     if (error){ ofrecerAgregar(ev, mensajeGoogle(error)); return; }
     avisar("Agendando en tu calendario…", "", 0);
@@ -1270,6 +1264,7 @@ $("btnGrabar").onclick = () => grabar($("btnGrabar"), async blob => {
     catch(e){ ofrecerAgregar(ev, mensajeGoogle(e)); return; }
     avisar(`Agendado: ${ev.titulo} · ${cuandoEs(ev)}`, "ok", 4500);
     animo("feliz", 2000);
+    actualizarLlaveroSolo("evento");
   }catch(e){
     avisar(e instanceof TypeError ? "No hay conexión con el servidor. Probá de nuevo en un ratito."
          : e && e.message ? e.message : "No se pudo entender el audio. Probá de nuevo.", "error", 4500);
@@ -1289,12 +1284,14 @@ const espejo = new MutationObserver(() => {
 /* ============================================================
    SINCRONIZAR CON EL LLAVERO (BLE)
    ============================================================ */
-// Eventos de hoy: de tu Google Calendar si está conectado; si no, los que grabaste en Kynus
-async function eventosDeHoy(){
+const DIAS_LLAVERO = 7;   // el llavero muestra hoy y los próximos 7 días
+
+// Eventos de hoy y de la semana: de tu Google Calendar si está conectado; si no, los que grabaste en Kynus
+async function eventosProximos(){
+  const ini = new Date(); ini.setHours(0, 0, 0, 0);
+  const fin = new Date(ini); fin.setDate(fin.getDate() + DIAS_LLAVERO + 1);
   if (googleConectado() && tokenValido()){
-    const ini = new Date(); ini.setHours(0, 0, 0, 0);
-    const fin = new Date(ini); fin.setDate(fin.getDate() + 1);
-    const p = new URLSearchParams({ timeMin:ini.toISOString(), timeMax:fin.toISOString(), singleEvents:"true", orderBy:"startTime", maxResults:"20" });
+    const p = new URLSearchParams({ timeMin:ini.toISOString(), timeMax:fin.toISOString(), singleEvents:"true", orderBy:"startTime", maxResults:"50" });
     try{
       const res = await fetch(`${API_CALENDAR}?${p}`, { headers:{ Authorization:`Bearer ${tokenGoogle}` } });
       if (res.status === 401) olvidarToken();
@@ -1303,12 +1300,29 @@ async function eventosDeHoy(){
         return { desde:"google", eventos:(data.items || []).map(e => {
           const dt = e.start && e.start.dateTime;
           const d = dt ? new Date(dt) : null;
-          return { hora: d ? `${dos(d.getHours())}:${dos(d.getMinutes())}` : "--:--", titulo: (e.summary || "Sin título").trim() };
+          return {
+            fecha: d ? fechaLocal(d) : (e.start && e.start.date) || fechaLocal(ini),
+            hora:  d ? `${dos(d.getHours())}:${dos(d.getMinutes())}` : "--:--",
+            titulo: (e.summary || "Sin título").trim(),
+          };
         }) };
       }
     }catch{}
   }
-  return { desde:"kynus", eventos:eventosGuardadosDeHoy() };
+  const desde = fechaLocal(ini), hasta = fechaLocal(fin);
+  return { desde:"kynus", eventos:eventosGuardados()
+    .filter(e => e.fecha >= desde && e.fecha < hasta)
+    .sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora)) };
+}
+
+// Mensaje para el llavero: "K2|ahora|fecha hora título|…" (el llavero no tiene reloj: se lo pasamos)
+function mensajeParaLlavero(evs){
+  const ahora = new Date(), hoy = fechaLocal(ahora);
+  const limpio = t => (t || "").replace(/[|\s]+/g, " ").trim().slice(0, 32) || "Sin título";
+  const deHoy = evs.filter(e => e.fecha === hoy).slice(0, 10);
+  const despues = evs.filter(e => e.fecha > hoy).slice(0, 20 - deHoy.length);
+  const items = [...deHoy, ...despues].map(e => `${e.fecha} ${e.hora} ${limpio(e.titulo)}|`).join("");
+  return { texto:`K2|${hoy} ${dos(ahora.getHours())}:${dos(ahora.getMinutes())}|${items}`, hoy:deHoy.length, despues:despues.length };
 }
 
 async function sincronizar(){
@@ -1332,43 +1346,131 @@ async function sincronizar(){
   mandarAlLlavero();
 }
 
+/* ---------- El llavero recordado ----------
+   Chrome pide elegir el llavero de la lista con un toque. Después, mientras la app
+   esté abierta, se puede volver a conectar sin preguntar: así los eventos nuevos se
+   le mandan solos. Si cerrás la app, la próxima vez hay que tocar Sincronizar. */
+let llavero = null;            // el llavero elegido en esta sesión
+let envioLlavero = null;       // el envío en curso (nunca dos a la vez)
+let otroEnvio = false;         // llegó otro pedido mientras se mandaba
+let llaveroPendiente = false;  // el último envío automático no se pudo hacer
+let ultimoEnvioLlavero = 0;
+
+function recordarLlavero(device){
+  llavero = device;
+  const btn = $("btnSync");
+  btn.classList.add("vinculado");
+  btn.title = "Llavero vinculado: los eventos nuevos se le mandan solos mientras la app está abierta";
+}
+function olvidarLlavero(){
+  llavero = null;
+  const btn = $("btnSync");
+  btn.classList.remove("vinculado");
+  btn.title = "";
+}
+
+// Conecta, manda el mensaje en trozos de 20 bytes y corta (el llavero vuelve a quedar visible y ahorra batería)
+async function escribirEnLlavero(device, texto){
+  const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
+  try{
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    const car     = await service.getCharacteristic(CHAR_UUID);
+    const bytes = new TextEncoder().encode(texto);
+    for (let i = 0; i < bytes.length; i += 20){
+      await car.writeValue(bytes.slice(i, i + 20));
+      await new Promise(r => setTimeout(r, 20));
+    }
+  }finally{
+    try{ device.gatt.disconnect(); }catch{}
+  }
+}
+
 async function mandarAlLlavero(){
   const btn = $("btnSync");
   btn.classList.remove("listo");
   btn.classList.add("ocupado");
+  if (envioLlavero) await envioLlavero.catch(() => {});   // si se estaba mandando solo, esperar
+  let device = llavero;
   try{
-    avisar("Buscando el llavero…", "", 0);
-    const device = await navigator.bluetooth.requestDevice({
-      filters:[{ namePrefix:"Kynus" }, { namePrefix:"Llavero" }],
-      optionalServices:[SERVICE_UUID]
-    });
-    const server  = await device.gatt.connect();
-    const service = await server.getPrimaryService(SERVICE_UUID);
-    const car     = await service.getCharacteristic(CHAR_UUID);
-
-    avisar("Buscando los eventos de hoy…", "", 0);
-    const { eventos:evs } = await eventosDeHoy();
-    // El llavero separa con "|": que ningún título lo tenga
-    const mensaje = evs.length ? evs.slice(0, 10).map(e => `${e.hora} ${e.titulo.replace(/\|/g, "/")}`).join("|") + "|" : "Sin eventos hoy";
-
-    const bytes = new TextEncoder().encode(mensaje);
-    for (let i = 0; i < bytes.length; i += 20){
-      await car.writeValue(bytes.slice(i, i + 20));
-      await new Promise(r => setTimeout(r, 50));
+    if (!device){
+      avisar("Buscando el llavero…", "", 0);
+      device = await navigator.bluetooth.requestDevice({
+        filters:[{ namePrefix:"Kynus" }, { namePrefix:"Llavero" }],
+        optionalServices:[SERVICE_UUID]
+      });
     }
-    avisar(evs.length ? `Llavero al día · ${evs.length} evento(s)` : "Llavero al día · sin eventos hoy", "ok");
+    avisar("Buscando tus eventos de la semana…", "", 0);
+    const mensaje = mensajeParaLlavero((await eventosProximos()).eventos);
+    avisar("Mandando al llavero…", "", 0);
+    await escribirEnLlavero(device, mensaje.texto);
+    const nuevo = !llavero;
+    recordarLlavero(device);
+    ultimoEnvioLlavero = Date.now();
+    llaveroPendiente = false;
+
+    const partes = [mensaje.hoy ? `${mensaje.hoy} hoy` : "nada hoy", mensaje.despues ? `${mensaje.despues} en la semana` : ""].filter(Boolean);
+    avisar(`Llavero al día · ${partes.join(" · ")}${nuevo ? ". Desde ahora los eventos nuevos se le mandan solos ✦" : ""}`, "ok", nuevo ? 5500 : 2800);
     btn.classList.add("listo");
     chispasEn(btn, 10);
     animo("feliz", 2000);
     setTimeout(() => btn.classList.remove("listo"), 3000);
   }catch(e){
     if (e.name === "NotFoundError") $("aviso").className = "aviso";   // cerró el selector sin elegir
+    else if (llavero && device === llavero){
+      olvidarLlavero();
+      avisar("No encontré el llavero. ¿Está prendido y cerca? Tocá Sincronizar para buscarlo de nuevo.", "error", 5000);
+    }
     else avisar("No se pudo sincronizar. ¿Está prendido el llavero y cerca?", "error", 4000);
   }finally{
     btn.classList.remove("ocupado");
   }
 }
 $("btnSync").onclick = sincronizar;
+
+// Manda la agenda al llavero sin que toques nada (si ya está vinculado en esta sesión)
+function actualizarLlaveroSolo(motivo){
+  if (!llavero) return;
+  // Si Google está conectado pero el permiso venció, no se puede renovar sin un toque:
+  // mejor no mandar sólo lo de Kynus y pisar tu agenda en el llavero
+  if (googleConectado() && !tokenValido()){ llaveroPendiente = true; return; }
+  if (envioLlavero){ otroEnvio = true; return; }
+  envioLlavero = (async () => {
+    try{
+      const { desde, eventos } = await eventosProximos();
+      if (googleConectado() && desde !== "google"){ llaveroPendiente = true; return; }
+      await escribirEnLlavero(llavero, mensajeParaLlavero(eventos).texto);
+      ultimoEnvioLlavero = Date.now();
+      llaveroPendiente = false;
+      if (motivo === "evento"){
+        const el = $("aviso");
+        if (el.classList.contains("mostrar") && el.textContent.startsWith("Agendado")) avisar(`${el.textContent} · ✦ ya está en el llavero`, "ok", 3500);
+        else avisar("✦ El llavero ya tiene tu evento nuevo", "ok", 3000);
+      }
+    }catch{
+      llaveroPendiente = true;   // lejos o apagado: se vuelve a probar más tarde
+    }
+  })().finally(() => {
+    envioLlavero = null;
+    if (otroEnvio){ otroEnvio = false; actualizarLlaveroSolo(motivo); }
+  });
+  return envioLlavero;
+}
+
+// Mientras la app está abierta: reintentar lo pendiente y refrescar cada tanto (por si cambió el día
+// o agregaste eventos desde otro lado)
+function revisarLlavero(){
+  if (!llavero || document.hidden) return;
+  if (llaveroPendiente || Date.now() - ultimoEnvioLlavero > 30 * 60 * 1000) actualizarLlaveroSolo("fondo");
+}
+setInterval(revisarLlavero, 5 * 60 * 1000);
+document.addEventListener("visibilitychange", revisarLlavero);
+
+// En las compus donde Chrome lo permite, se acuerda del llavero aunque cierres la app
+if (navigator.bluetooth && navigator.bluetooth.getDevices){
+  navigator.bluetooth.getDevices()
+    .then(lista => { const d = lista.find(x => /^(Kynus|Llavero)/.test(x.name || "")); if (d) recordarLlavero(d); })
+    .catch(() => {});
+}
 
 /* ============================================================
    BARRA DE LA NOTA: deshacer, rehacer, QR, buscar, menú, herramientas

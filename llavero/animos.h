@@ -52,6 +52,10 @@ public:
 
   Animo actual = NEUTRO;
 
+  // Se llama cuando termina un mood. Si devuelve true, el llavero se ocupa de la pantalla
+  // (por ejemplo, para mostrar los próximos días) y después vuelve con poner().
+  bool (*alTerminar)() = nullptr;
+
   // Después del arranque: un rato normal y después empiezan los cambios
   void empezar(){
     poner(NEUTRO, random(8000, 14000));
@@ -100,7 +104,7 @@ public:
     const uint32_t ahora = millis();
     if ((int32_t)(ahora - hasta) >= 0){
       if (actual == NEUTRO) poner(sortear(), random(ANIMO_DURA_MIN, ANIMO_DURA_MAX));
-      else                  poner(NEUTRO, random(NEUTRO_DURA_MIN, NEUTRO_DURA_MAX));
+      else if (!(alTerminar && alTerminar())) poner(NEUTRO, random(NEUTRO_DURA_MIN, NEUTRO_DURA_MAX));
       return;
     }
     if (finTemblor && (int32_t)(ahora - finTemblor) >= 0){ o.setHFlicker(OFF); finTemblor = 0; }

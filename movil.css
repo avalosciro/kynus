@@ -156,3 +156,6 @@ html.movil .diapo h2{ font-size:30px; }
 html.movil body.zen .ed-titulo{ font-size:32px; }
 html.movil body.zen .ed-cuerpo{ font-size:19px; }
 html.movil body.zen .principal{ padding-bottom:40px !important; }
+
+/* Llavero vinculado: en el celular el puntito va en la esquina del botón */
+html.movil #btnSync.vinculado::after{ left:auto; right:7px; top:5px; }

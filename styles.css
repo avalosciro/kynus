@@ -834,3 +834,10 @@ body.buscando .aviso{ bottom:calc(var(--nav-alto) + 104px + var(--inf)); }
 .evento-agregar{ justify-content:center; text-decoration:none; color:var(--tinta); }
 .modal-chico{ font-size:12.5px; color:var(--tenue); }
 @supports (corner-shape: squircle){ .evento-tarjeta{ corner-shape:squircle; } }
+
+/* ---------- Llavero vinculado en esta sesión: puntito menta en el botón ---------- */
+#btnSync{ position:relative; }
+#btnSync.vinculado::after{
+  content:""; position:absolute; top:4px; left:28px; width:9px; height:9px; border-radius:50%;
+  background:var(--menta); border:1.5px solid var(--tinta);
+}

@@ -57,7 +57,16 @@ App web (celular, Chrome Android)
   y fotos de portada van en IndexedDB (`llavero_media`).
 - BLE: `requestDevice({ filters:[{namePrefix:"Kynus"},{namePrefix:"Llavero"}], optionalServices:[SERVICE_UUID] })`
   - `SERVICE_UUID = 6e400001-b5a3-f393-e0a9-e50e24dcca9e`, `CHAR_UUID = 6e400002-b5a3-f393-e0a9-e50e24dcca9e`
-  - Mensaje: `"HH:MM título|HH:MM título|..."`, enviado en trozos de 20 bytes. Vacío → "Sin eventos hoy".
+  - Mensaje (v14): `"K2|AAAA-MM-DD HH:MM|AAAA-MM-DD HH:MM título|AAAA-MM-DD --:-- título|..."`: la primera
+    fecha es "ahora" (el llavero no tiene reloj), después hoy (máx. 10) y los próximos 7 días (máx. 20 en total);
+    `--:--` = todo el día; títulos de hasta 32 letras sin `|`. Trozos de 20 bytes. El firmware también
+    entiende el formato viejo `"HH:MM título|..."` (todo de hoy).
+  - Envío automático (v14): después de la primera sincronización, la app recuerda el `BluetoothDevice`
+    mientras está abierta (puntito menta en el botón Llavero) y le manda la agenda sola al grabar un evento,
+    al volver a la app y cada 30 min; si está lejos, reintenta cada 5 min. Conecta, escribe y desconecta.
+    Si Google está conectado con el permiso vencido, no manda (no pisa la agenda con sólo lo de Kynus).
+    `getDevices()` (recordarlo entre sesiones) viene apagado en Chrome Android: al reabrir la app hay que
+    tocar Sincronizar una vez.
 - Web Bluetooth solo anda en Chrome: si se hace APK, usar PWA + Trusted Web Activity (PWABuilder),
   no Capacitor ni WebView.
 
@@ -77,7 +86,12 @@ App web (celular, Chrome Android)
 - `animos.h`: moods al azar (feliz, cansado, triste, enojado, sorprendido, curioso, enamorado,
   dormido, nervioso, confundido, pícaro, emocionado). `PantallaKynus` deja dibujar extras
   (lágrima, corazones, Zzz, ?, !, estrellitas) antes de cada cuadro de RoboEyes.
-- El código actual es la versión **sin botón** (BLE "Llavero C3"): la frase sale cada vez que se prende.
+- `agenda.h`: lee el mensaje, guarda hasta 24 eventos y cuenta la hora desde la sincronización (se pierde al
+  apagar). El mensaje se procesa cuando pasan 700 ms sin trozos nuevos (antes se cortaba si era largo).
+- El código actual es la versión **sin botón** (BLE "Llavero C3"). Al prenderse, la frase sale 1 de cada 5 veces
+  (`CHANCE_FRASE`). Al sincronizar: eventos de hoy y después los próximos días. Al terminar un mood, 35% de
+  chance (`PROXIMOS_CHANCE`, como mucho cada 3 min) de mostrar los próximos días (hasta 3, uno por pantalla).
+  Cada 1 min repasa lo que queda de hoy (los eventos que ya terminaron no se muestran).
 - Hardware: LiPo 502030 + cargador TP4056 (USB-C) + interruptor. No usar pila de 9 V.
 
 ### Página de presentación (`presentacion/`, se sirve en `/`)
