@@ -169,6 +169,11 @@ def plantillas_js():
     return archivo('plantillas.js', 'application/javascript')
 
 
+@app.route('/tutorial.js')
+def tutorial_js():
+    return archivo('tutorial.js', 'application/javascript')
+
+
 # Logo: pestaña del navegador, acceso directo del celular y manifest (Android)
 TIPOS_ICONO = {'.svg': 'image/svg+xml', '.png': 'image/png'}
 

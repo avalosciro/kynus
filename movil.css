@@ -141,6 +141,8 @@ html.movil .menu-rico{
   bottom:calc(var(--nav-alto) + 14px + var(--inf));
   max-height:min(68svh, 560px);
 }
+/* En el tutorial el menú es más bajito, así la ventana del tutorial entra arriba sin taparlo */
+html.movil body.tutorial .menu-rico{ max-height:max(220px, calc(100svh - var(--nav-alto) - 334px)); }
 html.movil .mr-item{ padding:10px; }
 html.movil .mr-muestras{ grid-template-columns:repeat(4, 1fr); }
 

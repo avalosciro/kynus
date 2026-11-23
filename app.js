@@ -10,7 +10,7 @@
 const BACKEND = window.location.origin;
 const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const CHAR_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-const VERSION = 10;
+const VERSION = 11;
 const LIMITE = 35000;                    // caracteres por nota
 const esMovil = () => document.documentElement.classList.contains("movil");
 const sinMovimiento = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -251,6 +251,7 @@ function abrirMenu(ancla, opciones){
 const cerrarMenu = () => { $("menu").hidden = true; };
 
 document.addEventListener("pointerdown", e => {
+  if (document.body.classList.contains("tutorial")) return;    // el tutorial maneja sus propios menús
   if (!$("menu").hidden && !$("menu").contains(e.target)) cerrarMenu();
   if (!$("menuRico").hidden && !$("menuRico").contains(e.target) && !$("btnNotaMenu").contains(e.target)) cerrarMenuRico();
 }, true);
@@ -1672,7 +1673,16 @@ $("btnCrearMas").onclick = e => abrirMenu(e.currentTarget, [
   { txt:"Lista de tareas",         fn: () => crear("tarea") },
 ]);
 
+/* ---------- Tutorial (se descarga sólo cuando se usa) ---------- */
+let cargaTutorial = null;
+function iniciarTutorial(){
+  (cargaTutorial || (cargaTutorial = import(`/tutorial.js?v=${VERSION}`)))
+    .then(m => m.empezar())
+    .catch(() => { cargaTutorial = null; avisar("No se pudo abrir el tutorial. Revisá la conexión.", "error"); });
+}
+
 $("btnMenu").onclick = e => abrirMenu(e.currentTarget, [
+  { txt:"Ver el tutorial ✦",             fn: iniciarTutorial },
   { txt:"Sincronizar llavero",           fn: sincronizar },
   "-",
   { txt:"Exportar todo (copia .json)",   fn: exportarTodo },
@@ -1747,4 +1757,14 @@ if (leer("llavero_panel") === "oculto" && !esMovil()){
 aplicarHerramientas(leer("llavero_herramientas") === "ocultas");
 pintarSaludo();
 pintarLista();
-setTimeout(() => { if (leer("llavero_nombre") === null) mostrarBienvenida(); }, 600);
+// Primera vez: tutorial (que también pregunta el nombre).
+// Si ya usabas la app, un aviso de una sola vez para contarte que existe.
+const tutorial = leer("llavero_tutorial");
+if (!tutorial && !docs.length) setTimeout(iniciarTutorial, 450);
+else {
+  if (!tutorial){
+    escribir("llavero_tutorial", "avisado");
+    setTimeout(() => avisar("✦ Nuevo: hay un tutorial en el menú ··· del panel", "", 5500), 1200);
+  }
+  setTimeout(() => { if (leer("llavero_nombre") === null) mostrarBienvenida(); }, 600);
+}
